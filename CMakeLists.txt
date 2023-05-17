@@ -6,6 +6,9 @@ project(QwAnalysis VERSION 0.1 LANGUAGES CXX)
 # Local path for cmake modules
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
 
+# Path to up-to-date BOOST libraries
+list(APPEND CMAKE_PREFIX_PATH "/work/halla/moller12gev/pking/local_devel/boost_1_82_0")
+
 # Default install path is the source directory
 if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     message(STATUS "    Install-prefix was at default -> forcing it to the source-dir" )
@@ -60,7 +63,7 @@ list(REMOVE_ITEM my_project_headers
 #----------------------------------------------------------------------------
 # MYSQLPP
 #
-find_package(MYSQLPP)
+#find_package(MYSQLPP)
 IF(MYSQLPP_FOUND)
   config_add_dependency(MYSQLPP)
   include_directories(${MYSQLPP_INCLUDE_DIR})
