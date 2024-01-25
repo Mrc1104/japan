@@ -1,100 +1,77 @@
 cmake_minimum_required(VERSION 3.5)
 
+#----------------------------------------------------------------------------
+# Names of the main items built here
+set(LIBNAME ev)
+set(ALTLIBNAME wrEvio)
+set(SUBPROJECT_NAME Decode)
+
+#----------------------------------------------------------------------------
+# Required dependencies
+find_package(EVIO CONFIG QUIET)
+if(NOT EVIO_FOUND)
+  find_package(EVIO MODULE)
+  if(NOT EVIO_FOUND)
+    include(FetchBuildEVIO)
+  endif()
+endif()
+
+if(ONLINE_ET)
+  find_package(ET)
+endif()
 
 #----------------------------------------------------------------------------
 # Sources and headers
-#
-file(GLOB my_evio_headers
-  include/THaCoda*.h
-  include/evio.h
+set(src
+    src/THaCodaData.cxx
+    src/THaCodaFile.cxx
   )
-file(GLOB my_evio_sources
-  src/THaCoda*.C
-  src/evio.C
-  src/swap_util.C
+set(headers
+    include/CustomAlloc.h
+    include/Decoder.h
+    include/Helper.h
+    include/THaCodaData.h
+    include/THaCodaFile.h
+)
+
+#----------------------------------------------------------------------------
+# libevio
+add_library(${LIBNAME} SHARED ${src} ${headers} lib${LIBNAME}Dict.cxx)
+add_library(${PROJECT_NAME}::${SUBPROJECT_NAME} ALIAS ${LIBNAME})
+
+target_compile_options(${LIBNAME}
+  PUBLIC
+    ${${MAIN_PROJECT_NAME_UC}_CXX_FLAGS_LIST}
+  PRIVATE
+    ${${MAIN_PROJECT_NAME_UC}_DIAG_FLAGS_LIST}
   )
 
-
-#----------------------------------------------------------------------------
-# CODA ET
-#
-find_package(ET)
-IF(ET_FOUND)
-  add_definitions(-D__CODA_ET)
-  include_directories(${ET_INCLUDE_DIR})
-  list(APPEND my_evio_headers
-    ${PROJECT_SOURCE_DIR}/evio/include/THaEtClient.h
-    )
-  list(APPEND my_evio_sources
-    ${PROJECT_SOURCE_DIR}/evio/src/THaEtClient.C
-    )
-else(ET_FOUND)
-  set(ET_LIBRARY "")
-endif(ET_FOUND)
-
-
-#----------------------------------------------------------------------------
-# dictionaries
-#
-message(STATUS "Generating evio dictionaries for ROOT ${ROOT_VERSION}...")
-foreach(file ${my_evio_headers})
-  # Find the header files that have uncommented ClassDef lines
-  execute_process(COMMAND grep -l "[^/]ClassDef" ${file} OUTPUT_VARIABLE result)
-  if(result)
-    # Get path and filename without extension
-    get_filename_component(file_path ${file} PATH)
-    get_filename_component(file_name ${file} NAME_WE)
-    # Add dictionary target with possible LinkDef file
-    set(dict ${CMAKE_CURRENT_BINARY_DIR}/${file_name}Dict)
-    set(linkdef ${file_path}/${file_name}LinkDef.h)
-    build_root_dictionary(${file_name} ${file}
-      TARGETS evio
-      LINKDEF ${linkdef}
-    )
-    # Add dictionary to evio sources
-    set(my_evio_sources ${my_evio_sources} ${file_name}Dict.cxx)
-  endif()
-endforeach()
-
-
-#----------------------------------------------------------------------------
-# evio library
-#
-add_library(evio SHARED ${my_evio_sources})
-
-target_include_directories(evio
+target_include_directories(${LIBNAME}
   PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   )
 
-target_compile_options(evio
+target_link_libraries(${LIBNAME}
   PUBLIC
-    ${${PROJECT_NAME_UC}_CXX_FLAGS_LIST}
+    ROOT::Core
+    #${ONLIBS}    # et.h is in the THaEtClient.h public interface
   PRIVATE
-    ${${PROJECT_NAME_UC}_DIAG_FLAGS_LIST}
+    EVIO::EVIO
   )
 
-if(ET_FOUND)
-target_link_libraries(evio
-  PUBLIC
-    EVIO::ET
-    ROOT::Libraries
-  )
-else()
-target_link_libraries(evio
-  PUBLIC
-    ROOT::Libraries
-  )
-endif()
 
-install(TARGETS evio
+install(TARGETS ${LIBNAME}
   EXPORT ${MAIN_PROJECT_NAME_LC}-exports
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   )
+install(FILES ${headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(FILES ${my_evio_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
+#----------------------------------------------------------------------------
+# ROOT dictionary
+build_root_dictionary(lib${LIBNAME} ${headers}
+  TARGETS ${LIBNAME}
+  PCMNAME ${LIBNAME}
+  LINKDEF ${ALTLIBNAME}_LinkDef.h
+  )

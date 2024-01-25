@@ -4,7 +4,7 @@
 #pragma link off all classes;
 #pragma link off all functions;
 
-#pragma link C++ class THaEtClient+;
+#pragma link C++ class Decoder::THaCodaData+;
+#pragma link C++ class Decoder::THaCodaFile+;
 
 #endif
-

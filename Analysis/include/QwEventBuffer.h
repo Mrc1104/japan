@@ -22,6 +22,8 @@
 
 #include <unordered_map>
 
+using Decoder::THaCodaData;
+
 class QwOptions;
 class QwEPICSEvent;
 class VQwSubsystem;

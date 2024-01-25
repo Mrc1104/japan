@@ -481,6 +481,8 @@ Int_t QwEventBuffer::GetEvent()
   }
   if (status == CODA_OK){
     DecodeEventIDBank((UInt_t*)(fEvStream->getEvBuffer()));
+  } else {
+    QwError << "QwEventBuffer::GetEvent:  CODA event is not recognized" << QwLog::endl;
   }
   return status;
 }
@@ -532,7 +534,7 @@ Int_t QwEventBuffer::WriteFileEvent(int* buffer)
   Int_t status = CODA_OK;
   //  fEvStream is of inherited type THaCodaData,
   //  but codaWrite is only defined for THaCodaFile.
-  status = ((THaCodaFile*)fEvStream)->codaWrite(buffer);
+  status = ((Decoder::THaCodaFile*)fEvStream)->codaWrite((UInt_t*)buffer);
   return status;
 }
 
@@ -1227,7 +1229,7 @@ Int_t QwEventBuffer::OpenDataFile(const TString filename, const TString rw)
     QwDebug << "QwEventBuffer::OpenDataFile:  File handle doesn't exist.\n"
 	    << "                              Try to open a new file handle!"
 	    << QwLog::endl;
-    fEvStream = new THaCodaFile();
+    fEvStream = new Decoder::THaCodaFile();
     fEvStreamMode = fEvStreamFile;
   } else if (fEvStreamMode!=fEvStreamFile){
     QwError << "QwEventBuffer::OpenDataFile:  The stream is not configured as an input\n"
