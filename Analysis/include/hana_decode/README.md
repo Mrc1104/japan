@@ -13,3 +13,5 @@ Folder of files copied from the Hall A analyzer
 '/home/daq/analyzer/Database/Database.h' -> './Database.h'
 '/home/daq/analyzer/Database/Textvars.h' -> './Textvars.h'
 '/home/daq/analyzer/Database/Helper.h' -> './Helper.h'
+'/home/daq/analyzer/Database/VarDef.h' -> '../Analysis/include/hana_decode/VarDef.h'
+'/home/daq/analyzer/Database/VarType.h' -> '../Analysis/include/hana_decode/VarType.h'
