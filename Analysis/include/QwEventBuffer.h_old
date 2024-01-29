@@ -22,9 +22,7 @@
 
 #include <unordered_map>
 
-#include "CodaDecoder.h"
-
-using namespace Decoder;
+using Decoder::THaCodaData;
 
 class QwOptions;
 class QwEPICSEvent;
@@ -36,7 +34,7 @@ class QwSubsystemArray;
 
 ///
 /// \ingroup QwAnalysis
-class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
+class QwEventBuffer: public MQwCodaControlEvent{
  public:
   static void DefineOptions(QwOptions &options);
   static void SetDefaultDataDirectory(const std::string& dir) {
