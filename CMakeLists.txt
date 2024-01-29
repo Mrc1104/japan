@@ -41,6 +41,7 @@ endif()
 #
 file(GLOB my_project_sources
 		 Analysis/src/*.cc
+		 Analysis/src/hana_decode/*.cxx
 		 Parity/src/*.cc
 		 )
 list(REMOVE_ITEM my_project_sources
@@ -50,6 +51,7 @@ list(REMOVE_ITEM my_project_sources
 
 file(GLOB my_project_headers
 		 Analysis/include/*.h
+		 Analysis/include/hana_decode/*.h
 		 Parity/include/*.h
 		 )
 list(REMOVE_ITEM my_project_headers
@@ -118,19 +120,6 @@ set_compiler_flags("${ROOT_CXX_FLAGS}")
 set_diagnostic_flags(WALL)
 report_build_info()
 
-
-#----------------------------------------------------------------------------
-# evio library
-#
-#add_subdirectory(evio)
-#include_directories(evio/include)
-#find_package(ET)
-#IF(ET_FOUND)
-  #  The QwEventBuffer class also needs to see the "__CODA_ET" define,
-  #  not just the EVIO library.
-  #add_definitions(-D__CODA_ET)
-#ENDIF(ET_FOUND)
-
 #----------------------------------------------------------------------------
 # main dictionaries
 #
@@ -166,6 +155,7 @@ target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Analysis/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Analysis/include/hana_decode>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Parity/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   )

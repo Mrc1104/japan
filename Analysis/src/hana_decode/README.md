@@ -9,5 +9,6 @@ Folder of files copied from the Hall A analyzer
 '/home/daq/analyzer/hana_decode/THaSlotData.cxx' -> './THaSlotData.cxx'
 
 '/home/daq/analyzer/Database/Database.cxx' -> './Database.cxx'
+'/home/daq/analyzer/Database/VarType.cxx' -> './VarType.cxx
 '/home/daq/analyzer/Database/Textvars.cxx' -> './Textvars.cxx'
 
