@@ -1,4 +1,5 @@
 #include "QwEventBuffer.h"
+#include "CodaDecoder.h"
 
 #include "QwOptions.h"
 #include "QwEPICSEvent.h"
@@ -69,6 +70,10 @@ QwEventBuffer::QwEventBuffer()
   fCleanParameter[0] = 0.0;
   fCleanParameter[1] = 0.0;
   fCleanParameter[2] = 0.0;
+
+  SetCodaVersion(3);	 
+  // SetCodaVersion(2);
+
 }
 
 /**
@@ -474,17 +479,268 @@ Int_t QwEventBuffer::GetEvent()
 {
   Int_t status = kFileHandleNotConfigured;
   ResetFlags();
+  // Load up Coda Data into the fEvStream object
   if (fEvStreamMode==fEvStreamFile){
     status = GetFileEvent();
   } else if (fEvStreamMode==fEvStreamET){
     status = GetEtEvent();
   }
   if (status == CODA_OK){
-    DecodeEventIDBank((UInt_t*)(fEvStream->getEvBuffer()));
+    // Coda Data was loaded correctly
+    // DecodeEventIDBank((UInt_t*)(fEvStream->getEvBuffer())); // parse first word of the Coda Data
+    DecodeEvent((UInt_t*)(fEvStream->getEvBuffer()));
   } else {
     QwError << "QwEventBuffer::GetEvent:  CODA event is not recognized" << QwLog::endl;
   }
   return status;
+}
+
+// Modified from CodaDecoder.h
+Int_t QwEventBuffer::physics_decode( const UInt_t* evbuffer )
+{
+	// returns a list of the rocs found
+	// stores the # of rocs in nroc
+	// stores 
+  if( fDataVersion == 3 ) {
+    event_num = tbank.evtNum;
+    fEvtNumber = tbank.evtNum;
+    FindRocsCoda3(evbuffer);
+  } else {
+    event_num = evbuffer[4];
+    fEvtNumber = evbuffer[4];
+    FindRocs(evbuffer);
+  }
+ 
+  return HED_OK;
+}
+
+
+Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
+{
+
+  // Main engine for decoding, called by public LoadEvent() methods
+  assert(evbuffer);
+
+  buffer = evbuffer;
+  event_length = evbuffer[0]+1;  // in longwords (4 bytes)
+  fEvtLength = event_length;
+  event_type = 0;
+  data_type = 0;
+  trigger_bits = 0;
+  evt_time = 0;
+  bankdat.clear();
+  blkidx = 0;
+
+  // Determine event type
+  if (fDataVersion == 2) {
+    event_type = evbuffer[1]>>16;
+    fEvtType = event_type;
+  } else {  // CODA version 3
+    interpretCoda3(evbuffer);  // this defines event_type
+  }
+  Int_t ret = HED_OK;
+
+  if (event_type == PRESTART_EVTYPE ) {
+    // Usually prestart is the first 'event'.  Call SetRunTime() to
+    // re-initialize the crate map since we now know the run time.
+    // This won't happen for split files (no prestart). For such files,
+    // the user should call SetRunTime() explicitly.
+    SetRunTime(evbuffer[2]);
+    fCurrentRun  = evbuffer[3];
+    run_type = evbuffer[4];
+    QwDebug << "Prestart Event : run_num " << fCurrentRun
+                << "  run type "   << run_type
+                << "  event_type " << event_type
+                << "  run time "   << fRunTime
+                << QwLog::endl;
+  }
+
+  else if( event_type == PRESCALE_EVTYPE || event_type == TS_PRESCALE_EVTYPE ) {
+    if (fDataVersion == 2) {
+      ret = prescale_decode_coda2(evbuffer);
+    } else {
+      ret = prescale_decode_coda3(evbuffer);
+    }
+    if (ret != HED_OK ) return ret;
+  }
+
+  else if( event_type <= MAX_PHYS_EVTYPE && !PrescanModeEnabled() ) {
+    if( fDataVersion == 3 &&
+        (ret = trigBankDecode(evbuffer)) != HED_OK ) {
+      return ret;
+    }
+    ret = physics_decode(evbuffer);
+  }
+
+  return ret;
+}
+
+Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
+{
+  // Extract basic information from a CODA3 event
+  tbank.Clear();
+  tsEvType = 0;
+
+  bank_tag   = (evbuffer[1] & 0xffff0000) >> 16;
+  data_type  = (evbuffer[1] & 0xff00) >> 8;
+  block_size = evbuffer[1] & 0xff;
+
+  event_type = InterpretBankTag(bank_tag);
+  fEvtType = event_type;
+
+  if( bank_tag < 0xff00 ) { // User event type
+    if( QwDebug )    // if set, character data gets printed.
+      debug_print(evbuffer);
+
+    QwDebug << " User defined event type " << event_type << QwLog::endl;
+  }
+    QwDebug << "CODA 3  Event type " << event_type << " trigger_bits "
+                << trigger_bits << "  tsEvType  " << tsEvType
+                << "  evt_time " << GetEvTime() << QwLog::endl;
+
+  return HED_OK;
+}
+
+Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
+{ // CODA3 version
+
+// Find the pointers and lengths of ROCs in CODA3
+// ROC = ReadOut Controller, synonymous with "crate".
+// Earlier we had decoded the Trigger Bank in method trigBankDecode.
+// This filled the tbank structure.
+// For CODA3, the ROCs start after the Trigger Bank.
+
+	// TODO:
+	// These two lines is essentially all we need to extract because 
+	// QwEvent::FillSubsytemData(...) has logic to handle the rocs and subbanks
+	// We also need the bank type which we can obtain here or later...
+  UInt_t pos = 2 + tbank.len;
+	fWordsSoFar = (pos); // this is the word right before 0x21001
+                       // evbuffer[pos+1] prints out 0x21001
+	fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
+  // It is unclear to me how JAPAN handles mutli-roc setups...
+  nroc=0;
+
+  std::for_each(ALL(rocdat), []( RocDat_t& ROC ) { ROC.clear(); });
+
+  while (pos+1 < event_length) {
+    UInt_t len = evbuffer[pos];          /* total Length of ROC Bank data */
+    UInt_t iroc = (evbuffer[pos+1]&0x0fff0000)>>16;   /* ID of ROC is 12 bits*/
+    if( iroc >= MAXROC ) {
+      return HED_ERR;
+    }
+    rocdat[iroc].len = len;
+    rocdat[iroc].pos = pos;
+    irn[nroc] = iroc;
+    pos += len+1;
+    nroc++;
+  }
+
+  /* Sanity check:  Check if number of ROCs matches */
+  if(nroc != tbank.nrocs) {
+      printf(" ****ERROR: Trigger and Physics Block sizes do not match (%d != %d)\n",nroc,tbank.nrocs);
+// If you are reading a data file originally written with CODA 2 and then
+// processed (written out) with EVIO 4, it will segfault. Do as it says below.
+      printf("This might indicate a file written with EVIO 4 that was a CODA 2 file\n");
+      printf("Try  analyzer->SetCodaVersion(2)  in the analyzer script.\n");
+      return HED_ERR;
+  }
+
+  if (QwDebug) {  // debug
+
+    QwDebug << QwLog::endl << "  FindRocsCoda3 :: Starting Event number = " << std::dec << tbank.evtNum;
+    QwDebug << QwLog::endl;
+    QwDebug << "    Trigger Bank Len = "<<tbank.len<<" words "<<QwLog::endl;
+    QwDebug << "    There are "<<nroc<<"  ROCs"<<QwLog::endl;
+    for( UInt_t i = 0; i < nroc; i++ ) {
+      QwDebug << "     ROC ID = "<<irn[i]<<"  pos = "<<rocdat[irn[i]].pos
+          <<"  Len = "<<rocdat[irn[i]].len<<QwLog::endl;
+    }
+    QwDebug << "    Trigger BANK INFO,  TAG = "<<std::hex<<tbank.tag<<std::dec<<QwLog::endl;
+    QwDebug << "    start "<<std::hex<<tbank.start<<"      blksize "<<std::dec<<tbank.blksize
+        <<"  len "<<tbank.len<<"   tag "<<tbank.tag<<"   nrocs "<<tbank.nrocs<<"   evtNum "<<tbank.evtNum;
+    QwDebug << QwLog::endl;
+    QwDebug << "         Event #       Time Stamp       Event Type"<<QwLog::endl;
+    for( UInt_t i = 0; i < tbank.blksize; i++ ) {
+      if( tbank.evTS ) {
+          QwDebug << "      "<<std::dec<<tbank.evtNum+i<<"   "<<tbank.evTS[i]<<"   "<<tbank.evType[i];
+          QwDebug << QwLog::endl;
+       } else {
+          QwDebug << "     "<<tbank.evtNum+i<<"(No Time Stamp)   "<<tbank.evType[i];
+          QwDebug << QwLog::endl;
+       }
+       QwDebug << "\n" <<QwLog::endl;
+    }
+  }
+
+  return 1;
+}
+
+Int_t QwEventBuffer::FindRocs(const UInt_t *evbuffer) 
+{
+// The (old) decoding of CODA 2.* event buffer to find pointers and lengths of ROCs
+// ROC = ReadOut Controller, synonymous with "crate".
+
+  assert( evbuffer );
+  Int_t status = HED_OK;
+
+  // The following line is not meaningful for CODA3
+  if( (evbuffer[1]&0xffff) != 0x10cc ) std::cout<<"Warning, header error"<<std::endl;
+  if( event_type > MAX_PHYS_EVTYPE ) std::cout<<"Warning, Event type makes no sense"<<std::endl;
+  std::for_each(ALL(rocdat), []( RocDat_t& ROC ) { ROC.clear(); });
+  // Set pos to start of first ROC data bank
+  UInt_t pos = evbuffer[2]+3;  // should be 7
+  nroc = 0;
+  while( pos+1 < event_length && nroc < MAXROC ) {
+    UInt_t len  = evbuffer[pos];
+    UInt_t iroc = (evbuffer[pos+1]&0xff0000)>>16;
+    if( iroc>=MAXROC ) {
+      QwMessage << "ERROR in EvtTypeHandler::FindRocs "<<QwLog::endl;
+      QwMessage << "  illegal ROC number " <<std::dec<<iroc<<QwLog::endl;
+      return HED_ERR;
+    }
+    // Save position and length of each found ROC data block
+    rocdat[iroc].pos  = pos;
+    rocdat[iroc].len  = len;
+    irn[nroc++] = iroc;
+    pos += len+1;
+  }
+
+  if (QwDebug) {
+    QwDebug << "CodaDecode:: num rocs "<<std::dec<<nroc<<QwLog::endl;
+    for( UInt_t i = 0; i < nroc; i++ ) {
+      UInt_t iroc = irn[i];
+      QwDebug<< "   CodaDecode::   roc  num "<<iroc<<"   pos "<<rocdat[iroc].pos<<"     len "<<rocdat[iroc].len<<QwLog::endl;
+    }
+  }
+
+  return status;
+}
+
+Int_t QwEventBuffer::trigBankDecode( const UInt_t* evbuffer )
+{
+  // Decode the CODA3 trigger bank. Copy relevant data to member variables.
+  // This will initialize the crate map.
+
+  const char* const here = "CodaDecoder::trigBankDecode";
+
+  // Decode trigger bank (bank of segments at start of physics event)
+  if( block_size == 0 ) {
+    Error(here, "CODA 3 format error: Physics event with block size 0");
+    return HED_ERR;
+  }
+  try {
+    tbank.Fill(evbuffer + 2, block_size,0 );
+  }
+  catch( const coda_format_error& e ) {
+    Error(here, "CODA 3 format error: %s", e.what() );
+    return HED_ERR;
+  }
+
+  // Copy pertinent data to member variables for faster retrieval
+  LoadTrigBankInfo(0);  // Load data for first event in block
+
+  return HED_OK;
 }
 
 Int_t QwEventBuffer::GetFileEvent(){
@@ -740,10 +996,6 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
   ///      subbank structure as the physics events for that ROC.
   Bool_t okay = kTRUE;
   UInt_t rocnum = fEvtType - 0x90;
-  QwMessage << "QwEventBuffer::FillSubsystemConfigurationData:  "
-	    << "Found configuration event for ROC"
-	    << rocnum
-	    << QwLog::endl;
   QwMessage << Form("Length: %d; Tag: 0x%x; Bank data type: 0x%x; Bank ID num: 0x%x; ",
 		    fEvtLength, fEvtTag, fBankDataType, fIDBankNum)
 	    << Form("Evt type: 0x%x; Evt number %d; Evt Class 0x%.8x; ",
@@ -751,7 +1003,7 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
 	    << QwLog::endl;
   //  Loop through the data buffer in this event.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
-  DecodeEventIDBank(localbuff);
+  DecodeEvent(localbuff);
   while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
     //  If this bank has further subbanks, restart the loop.
     if (fSubbankType == 0x10) {
@@ -794,7 +1046,8 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
   //  Reload the data buffer and decode the header again, this allows
   //  multiple calls to this function for different subsystem arrays.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
-  DecodeEventIDBank(localbuff);
+  // DecodeEventIDBank(localbuff);
+  DecodeEvent(localbuff);
 
   //  Clear the old event information from the subsystems.
   subsystems.ClearEventData();
@@ -805,8 +1058,8 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
   subsystems.SetCodaEventNumber(fEvtNumber);
   subsystems.SetCodaEventType(fEvtType);
 
-
-
+	// TODO:
+	// What is this mask?
   // If this event type is masked for the subsystem array, return right away
   if (((0x1 << (fEvtType - 1)) & subsystems.GetEventTypeMask()) == 0) {
     return kTRUE;
@@ -845,7 +1098,9 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
     //
     //  After trying the data in each subsystem, bump the
     //  fWordsSoFar to move to the next bank.
-
+		
+		// TODO:
+		// What is special about this subbank?
     if( fROC == 0 && fSubbankTag==0x6101) {
       //std::cout << "ProcessEventBuffer: ROC="<<fROC<<", SubbankTag="<< fSubbankTag<<", FragLength="<<fFragLength <<std::endl;
       fCleanParameter[0]=localbuff[fWordsSoFar+fFragLength-4];//clean data
@@ -861,333 +1116,337 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
     Int_t nmarkers = CheckForMarkerWords(subsystems);
     if (nmarkers>0) {
       //  There are markerwords for this ROC/Bank
-      for (size_t i=0; i<nmarkers; i++){
-	offset = FindMarkerWord(i,&localbuff[fWordsSoFar],fFragLength);
-	BankID_t tmpbank = GetMarkerWord(i);
-	tmpbank = ((tmpbank)<<32) + fSubbankTag;
-	if (offset != -1){
-	  offset++; //  Skip the marker word
-	  subsystems.ProcessEvBuffer(fEvtType, fROC, tmpbank,
-				     &localbuff[fWordsSoFar+offset],
-				     fFragLength-offset);
+						for (size_t i=0; i<nmarkers; i++){
+										offset = FindMarkerWord(i,&localbuff[fWordsSoFar],fFragLength);
+										BankID_t tmpbank = GetMarkerWord(i);
+										tmpbank = ((tmpbank)<<32) + fSubbankTag;
+										if (offset != -1){
+														offset++; //  Skip the marker word
+														subsystems.ProcessEvBuffer(fEvtType, fROC, tmpbank,
+																						&localbuff[fWordsSoFar+offset],
+																						fFragLength-offset);
+										}
+						}
+		} else {
+						QwDebug << "QwEventBuffer::FillSubsystemData:  "
+										<< "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
+										<< ", fWordsSoFar=="<< fWordsSoFar
+										<< ", fFragLength=="<< fFragLength
+										<< ", localbuff[fWordsSoFar] = " << localbuff[fWordsSoFar] 
+										<< QwLog::endl;	
+						subsystems.ProcessEvBuffer(fEvtType, fROC, fSubbankTag,
+														&localbuff[fWordsSoFar],
+														fFragLength);
+
+		}
+		fWordsSoFar += fFragLength;
+		//     QwDebug << "QwEventBuffer::FillSubsystemData:  "
+		// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
+		// 	    <<QwLog::endl;
 	}
-      }
-    } else {
-      QwDebug << "QwEventBuffer::FillSubsystemData:  "
-	      << "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
-	      << QwLog::endl;	
-      subsystems.ProcessEvBuffer(fEvtType, fROC, fSubbankTag,
-				 &localbuff[fWordsSoFar],
-				 fFragLength);
-    }
-    fWordsSoFar += fFragLength;
-//     QwDebug << "QwEventBuffer::FillSubsystemData:  "
-// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
-// 	    <<QwLog::endl;
-  }
-  return okay;
+	return okay;
 }
 
 
 // added all this method for QwEPICSEvent class
 Bool_t QwEventBuffer::FillEPICSData(QwEPICSEvent &epics)
 {
-  // QwVerbose << "QwEventBuffer::FillEPICSData:  "
-// 	  << Form("Length: %d; Tag: 0x%x; Bank ID num: 0x%x; ",
-// 		  fEvtLength, fEvtTag, fIDBankNum)
-// 	  << Form("Evt type: 0x%x; Evt number %d; Evt Class 0x%.8x; ",
-// 		  fEvtType, fEvtNumber, fEvtClass)
-// 	  << Form("Status Summary: 0x%.8x; Words so far %d",
-// 		  fStatSum, fWordsSoFar)
-// 	  << QwLog::endl;
+				// QwVerbose << "QwEventBuffer::FillEPICSData:  "
+				// 	  << Form("Length: %d; Tag: 0x%x; Bank ID num: 0x%x; ",
+				// 		  fEvtLength, fEvtTag, fIDBankNum)
+				// 	  << Form("Evt type: 0x%x; Evt number %d; Evt Class 0x%.8x; ",
+				// 		  fEvtType, fEvtNumber, fEvtClass)
+				// 	  << Form("Status Summary: 0x%.8x; Words so far %d",
+				// 		  fStatSum, fWordsSoFar)
+				// 	  << QwLog::endl;
 
 
-  ///
-  Bool_t okay = kTRUE;
-  if (! IsEPICSEvent()){
-    okay = kFALSE;
-    return okay;
-  }
-  QwVerbose << "QwEventBuffer::FillEPICSData:  "
-	    << QwLog::endl;
-  //  Loop through the data buffer in this event.
-  UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
-  if (fBankDataType==0x10){
-    while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
-      //  If this bank has further subbanks, restart the loop.
-      if (fSubbankType == 0x10) continue;
-      //  If this bank only contains the word 'NULL' then skip
-      //  this bank.
-      if (fFragLength==1 && localbuff[fWordsSoFar]==kNullDataWord){
-	fWordsSoFar += fFragLength;
-	continue;
-      }
+				///
+				Bool_t okay = kTRUE;
+				if (! IsEPICSEvent()){
+								okay = kFALSE;
+								return okay;
+				}
+				QwVerbose << "QwEventBuffer::FillEPICSData:  "
+								<< QwLog::endl;
+				//  Loop through the data buffer in this event.
+				UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
+				if (fBankDataType==0x10){
+								while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
+												//  If this bank has further subbanks, restart the loop.
+												if (fSubbankType == 0x10) continue;
+												//  If this bank only contains the word 'NULL' then skip
+												//  this bank.
+												if (fFragLength==1 && localbuff[fWordsSoFar]==kNullDataWord){
+																fWordsSoFar += fFragLength;
+																continue;
+												}
 
-      if (fSubbankType == 0x3){
-	//  This is an ASCII string bank.  Try to decode it and
-	//  pass it to the EPICS class.
-	char* tmpchar = (Char_t*)&localbuff[fWordsSoFar];
-	
-	epics.ExtractEPICSValues(string(tmpchar), GetEventNumber());
-	QwVerbose << "test for GetEventNumber =" << GetEventNumber() << QwLog::endl;// always zero, wrong.
-	
-      }
+												if (fSubbankType == 0x3){
+																//  This is an ASCII string bank.  Try to decode it and
+																//  pass it to the EPICS class.
+																char* tmpchar = (Char_t*)&localbuff[fWordsSoFar];
 
+																epics.ExtractEPICSValues(string(tmpchar), GetEventNumber());
+																QwVerbose << "test for GetEventNumber =" << GetEventNumber() << QwLog::endl;// always zero, wrong.
 
-      fWordsSoFar += fFragLength;
-
-//     QwDebug << "QwEventBuffer::FillEPICSData:  "
-// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
-// 	    <<QwLog::endl;
-//     QwMessage<<"\nQwEventBuffer::FillEPICSData: fWordsSoFar = "<<fWordsSoFar<<QwLog::endl;
+												}
 
 
-    }
-  } else {
-    // Single bank in the event, use event headers.
-    if (fBankDataType == 0x3){
-      //  This is an ASCII string bank.  Try to decode it and
-      //  pass it to the EPICS class.
-      Char_t* tmpchar = (Char_t*)&localbuff[fWordsSoFar];
-      
-      QwError << tmpchar << QwLog::endl;
-      
-      epics.ExtractEPICSValues(string(tmpchar), GetEventNumber());
-      
-    }
+												fWordsSoFar += fFragLength;
 
-  }
+												//     QwDebug << "QwEventBuffer::FillEPICSData:  "
+												// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
+												// 	    <<QwLog::endl;
+												//     QwMessage<<"\nQwEventBuffer::FillEPICSData: fWordsSoFar = "<<fWordsSoFar<<QwLog::endl;
 
-  //std::cout<<"\nEpics data coming!! "<<fWordsSoFar<<std::endl;
-  QwVerbose << "QwEventBuffer::FillEPICSData:  End of routine"
-	    << QwLog::endl;
-  return okay;
+
+								}
+				} else {
+								// Single bank in the event, use event headers.
+								if (fBankDataType == 0x3){
+												//  This is an ASCII string bank.  Try to decode it and
+												//  pass it to the EPICS class.
+												Char_t* tmpchar = (Char_t*)&localbuff[fWordsSoFar];
+
+												QwError << tmpchar << QwLog::endl;
+
+												epics.ExtractEPICSValues(string(tmpchar), GetEventNumber());
+
+								}
+
+				}
+
+				//std::cout<<"\nEpics data coming!! "<<fWordsSoFar<<std::endl;
+				QwVerbose << "QwEventBuffer::FillEPICSData:  End of routine"
+								<< QwLog::endl;
+				return okay;
 }
 
 
 Bool_t QwEventBuffer::DecodeSubbankHeader(UInt_t *buffer){
-  //  This function will decode the header information from
-  //  either a ROC bank or a subbank.  It will also bump
-  //  fWordsSoFar to be referring to the first word of
-  //  the subbank's data.
-  //
-  //  NOTE TO DAQ PROGRAMMERS:
-  //      All internal subbank tags MUST be defined to
-  //      be greater than 31.
-  Bool_t okay = kTRUE;
-  if (fWordsSoFar >= fEvtLength){
-    //  We have reached the end of this event.
-    okay = kFALSE;
-  } else if (fBankDataType == 0x10) {
-    //  This bank has subbanks, so decode the subbank header.
-    fFragLength   = buffer[0] - 1;  // This is the number of words in the data block
-    fSubbankTag   = (buffer[1]&0xFFFF0000)>>16; // Bits 16-31
-    fSubbankType  = (buffer[1]&0xFF00)>>8;      // Bits 8-15
-    fSubbankNum   = (buffer[1]&0xFF);           // Bits 0-7
+				//  This function will decode the header information from
+				//  either a ROC bank or a subbank.  It will also bump
+				//  fWordsSoFar to be referring to the first word of
+				//  the subbank's data.
+				//
+				//  NOTE TO DAQ PROGRAMMERS:
+				//      All internal subbank tags MUST be defined to
+				//      be greater than 31.
+				Bool_t okay = kTRUE;
+				if (fWordsSoFar >= fEvtLength){
+								//  We have reached the end of this event.
+								okay = kFALSE;
+				} else if (fBankDataType == 0x10) {
+								//  This bank has subbanks, so decode the subbank header.
+								fFragLength   = buffer[0] - 1;  // This is the number of words in the data block
+								fSubbankTag   = (buffer[1]&0xFFFF0000)>>16; // Bits 16-31
+								fSubbankType  = (buffer[1]&0xFF00)>>8;      // Bits 8-15
+								fSubbankNum   = (buffer[1]&0xFF);           // Bits 0-7
 
-    QwDebug << "QwEventBuffer::DecodeSubbankHeader: "
-	    << "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
-	    << ", fSubbankType=="<<fSubbankType << ", fSubbankNum==" <<fSubbankNum
-	    << ", fAllowLowSubbankIDs==" << fAllowLowSubbankIDs
-	    << QwLog::endl;
+								QwDebug << "QwEventBuffer::DecodeSubbankHeader: "
+												<< "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
+												<< ", fSubbankType=="<<fSubbankType << ", fSubbankNum==" <<fSubbankNum
+												<< ", fAllowLowSubbankIDs==" << fAllowLowSubbankIDs
+												<< QwLog::endl;
 
-    if (fSubbankTag<=31 
-	&& ( (fAllowLowSubbankIDs==kFALSE)
-	     || (fAllowLowSubbankIDs==kTRUE && fSubbankType==0x10) ) ){
-      //  Subbank tags between 0 and 31 indicate this is
-      //  a ROC bank.
-      fROC        = fSubbankTag;
-      fSubbankTag = 0;
-    }
-    if (fWordsSoFar+2+fFragLength > fEvtLength){
-      //  Trouble, because we'll have too many words!
-      QwError << "fWordsSoFar+2+fFragLength=="<<fWordsSoFar+2+fFragLength
-		<< " and fEvtLength==" << fEvtLength
-		<< QwLog::endl;
-      okay = kFALSE;
-    }
-    fWordsSoFar   += 2;
-  }
-  QwDebug << "QwEventBuffer::DecodeSubbankHeader: " 
-	  << "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag <<": "
-	  <<  std::hex
-	  << buffer[0] << " "
-	  << buffer[1] << " "
-	  << buffer[2] << " "
-	  << buffer[3] << " "
-	  << buffer[4] << std::dec << " "
-	  << fWordsSoFar << " "<< fEvtLength
-	  << QwLog::endl;
-  //  There is no final else, because any bank type other than 
-  //  0x10 should just return okay.
-  return okay;
+								if (fSubbankTag<=31 
+																&& ( (fAllowLowSubbankIDs==kFALSE)
+																				|| (fAllowLowSubbankIDs==kTRUE && fSubbankType==0x10) ) ){
+												//  Subbank tags between 0 and 31 indicate this is
+												//  a ROC bank.
+												fROC        = fSubbankTag;
+												fSubbankTag = 0;
+								}
+								if (fWordsSoFar+2+fFragLength > fEvtLength){
+												//  Trouble, because we'll have too many words!
+												QwError << "fWordsSoFar+2+fFragLength=="<<fWordsSoFar+2+fFragLength
+																<< " and fEvtLength==" << fEvtLength
+																<< QwLog::endl;
+												okay = kFALSE;
+								}
+								fWordsSoFar   += 2;
+				}
+				QwDebug << "QwEventBuffer::DecodeSubbankHeader: " 
+								<< "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag <<": "
+								<<  std::hex
+								<< buffer[0] << " "
+								<< buffer[1] << " "
+								<< buffer[2] << " "
+								<< buffer[3] << " "
+								<< buffer[4] << std::dec << " "
+								<< fWordsSoFar << " "<< fEvtLength
+								<< QwLog::endl;
+				//  There is no final else, because any bank type other than 
+				//  0x10 should just return okay.
+				return okay;
 }
 
 
 const TString&  QwEventBuffer::DataFile(const UInt_t run, const Short_t seg = -1)
 {
-  TString basename = fDataFileStem + Form("%u.",run) + fDataFileExtension;
-  if(seg == -1){
-    fDataFile = fDataDirectory + basename;
-  } else {
-    fDataFile = fDataDirectory + basename + Form(".%d",seg);
-  }
-  return fDataFile;
+				TString basename = fDataFileStem + Form("%u.",run) + fDataFileExtension;
+				if(seg == -1){
+								fDataFile = fDataDirectory + basename;
+				} else {
+								fDataFile = fDataDirectory + basename + Form(".%d",seg);
+				}
+				return fDataFile;
 }
 
 
 Bool_t QwEventBuffer::DataFileIsSegmented()
 {
-  glob_t globbuf;
+				glob_t globbuf;
 
-  TString searchpath;
-  TString scanvalue;
-  Int_t   local_segment;
+				TString searchpath;
+				TString scanvalue;
+				Int_t   local_segment;
 
-  std::vector<Int_t> tmp_segments;
-  std::vector<Int_t> local_index;
+				std::vector<Int_t> tmp_segments;
+				std::vector<Int_t> local_index;
 
-  /*  Clear and set up the fRunSegments vector. */
-  tmp_segments.clear();
-  fRunSegments.clear();
-  fRunSegments.resize(0);
-  fRunIsSegmented = kFALSE;
+				/*  Clear and set up the fRunSegments vector. */
+				tmp_segments.clear();
+				fRunSegments.clear();
+				fRunSegments.resize(0);
+				fRunIsSegmented = kFALSE;
 
-  searchpath = fDataFile;
-  glob(searchpath.Data(), GLOB_ERR, NULL, &globbuf);
+				searchpath = fDataFile;
+				glob(searchpath.Data(), GLOB_ERR, NULL, &globbuf);
 
-  if (globbuf.gl_pathc == 1){
-    /* The base file name exists.                               *
-     * Do not look for file segments.                           */
-    fRunIsSegmented = kFALSE;
+				if (globbuf.gl_pathc == 1){
+								/* The base file name exists.                               *
+								 * Do not look for file segments.                           */
+								fRunIsSegmented = kFALSE;
 
-  } else {
-    /* The base file name does not exist.                       *
-     * Look for file segments.                                  */
-    QwWarning << "File " << fDataFile << " does not exist!\n"
-	      << "      Trying to find run segments for run "
-	      << fCurrentRun << "...  ";
+				} else {
+								/* The base file name does not exist.                       *
+								 * Look for file segments.                                  */
+								QwWarning << "File " << fDataFile << " does not exist!\n"
+												<< "      Trying to find run segments for run "
+												<< fCurrentRun << "...  ";
 
-    searchpath.Append(".[0-9]*");
-    glob(searchpath.Data(), GLOB_ERR, NULL, &globbuf);
+								searchpath.Append(".[0-9]*");
+								glob(searchpath.Data(), GLOB_ERR, NULL, &globbuf);
 
-    if (globbuf.gl_pathc == 0){
-      /* There are no file segments and no base file            *
-       * Produce and error message and exit.                    */
-      QwError << "\n      There are no file segments either!!" << QwLog::endl;
+								if (globbuf.gl_pathc == 0){
+												/* There are no file segments and no base file            *
+												 * Produce and error message and exit.                    */
+												QwError << "\n      There are no file segments either!!" << QwLog::endl;
 
-      // This could mean a single gzipped file!
-      fRunIsSegmented = kFALSE;
+												// This could mean a single gzipped file!
+												fRunIsSegmented = kFALSE;
 
-    } else {
-      /* There are file segments.                               *
-       * Determine the segment numbers and fill fRunSegments    *
-       * to indicate the existing file segments.                */
+								} else {
+												/* There are file segments.                               *
+												 * Determine the segment numbers and fill fRunSegments    *
+												 * to indicate the existing file segments.                */
 
-      QwMessage << "OK" << QwLog::endl;
-      scanvalue = fDataFile + ".%d";
+												QwMessage << "OK" << QwLog::endl;
+												scanvalue = fDataFile + ".%d";
 
-      /*  Get the list of segment numbers in file listing       *
-       *  order.                                                */
-      for (size_t iloop=0;iloop<globbuf.gl_pathc;++iloop){
-        /*  Extract the segment numbers from the file name.     */
-        sscanf(globbuf.gl_pathv[iloop], scanvalue.Data(), &local_segment);
-        tmp_segments.push_back(local_segment);
-      }
-      local_index.resize(tmp_segments.size(),0);
-      /*  Get the list of segments sorted numerically in        *
-       *  increasing order.                                     */
-      TMath::Sort(static_cast<int>(tmp_segments.size()),&(tmp_segments[0]),&(local_index[0]),
-                  kFALSE);
-      /*  Put the segments into numerical order in fRunSegments.  Add  *
-       *  only those segments requested (though always add segment 0). */
-      QwMessage << "      Found the segment(s): ";
-      size_t printed = 0;
-      for (size_t iloop=0; iloop<tmp_segments.size(); ++iloop){
-        local_segment = tmp_segments[local_index[iloop]];
-        if (printed++) QwMessage << ", ";
-	QwMessage << local_segment ;
-	if (local_segment == 0 ||
-	    ( fSegmentRange.first <= local_segment &&
-	      local_segment <= fSegmentRange.second ) ) {
-	  fRunSegments.push_back(local_segment);
-	} else {
-	  QwMessage << " (skipped)" ;
-	}
-      }
-      QwMessage << "." << QwLog::endl;
-      fRunSegmentIterator = fRunSegments.begin();
+												/*  Get the list of segment numbers in file listing       *
+												 *  order.                                                */
+												for (size_t iloop=0;iloop<globbuf.gl_pathc;++iloop){
+																/*  Extract the segment numbers from the file name.     */
+																sscanf(globbuf.gl_pathv[iloop], scanvalue.Data(), &local_segment);
+																tmp_segments.push_back(local_segment);
+												}
+												local_index.resize(tmp_segments.size(),0);
+												/*  Get the list of segments sorted numerically in        *
+												 *  increasing order.                                     */
+												TMath::Sort(static_cast<int>(tmp_segments.size()),&(tmp_segments[0]),&(local_index[0]),
+																				kFALSE);
+												/*  Put the segments into numerical order in fRunSegments.  Add  *
+												 *  only those segments requested (though always add segment 0). */
+												QwMessage << "      Found the segment(s): ";
+												size_t printed = 0;
+												for (size_t iloop=0; iloop<tmp_segments.size(); ++iloop){
+																local_segment = tmp_segments[local_index[iloop]];
+																if (printed++) QwMessage << ", ";
+																QwMessage << local_segment ;
+																if (local_segment == 0 ||
+																								( fSegmentRange.first <= local_segment &&
+																									local_segment <= fSegmentRange.second ) ) {
+																				fRunSegments.push_back(local_segment);
+																} else {
+																				QwMessage << " (skipped)" ;
+																}
+												}
+												QwMessage << "." << QwLog::endl;
+												fRunSegmentIterator = fRunSegments.begin();
 
-      fRunIsSegmented = kTRUE;
+												fRunIsSegmented = kTRUE;
 
-      /* If the first requested segment hasn't been found,
-	 forget everything. */
-      if ( local_segment < fSegmentRange.first ) {
-	QwError << "First requested run segment "
-		<< fSegmentRange.first << " not found.\n";
-	fRunSegments.pop_back();
-	fRunSegmentIterator = fRunSegments.begin();
-	fRunIsSegmented = kTRUE; // well, it is true.
-      }
-    }
-  }
-  globfree(&globbuf);
-  return fRunIsSegmented;
+												/* If the first requested segment hasn't been found,
+													 forget everything. */
+												if ( local_segment < fSegmentRange.first ) {
+																QwError << "First requested run segment "
+																				<< fSegmentRange.first << " not found.\n";
+																fRunSegments.pop_back();
+																fRunSegmentIterator = fRunSegments.begin();
+																fRunIsSegmented = kTRUE; // well, it is true.
+												}
+								}
+				}
+				globfree(&globbuf);
+				return fRunIsSegmented;
 }
 
 //------------------------------------------------------------
 
 Int_t QwEventBuffer::CloseThisSegment()
 {
-  Int_t status = kFileHandleNotConfigured;
-  Int_t last_runsegment;
-  if (fRunIsSegmented){
-    last_runsegment = *fRunSegmentIterator;
-    fRunSegmentIterator++;
-    if (fRunSegmentIterator <= fRunSegments.end()){
-      QwMessage << "Closing run segment " << last_runsegment <<"."
-		<< QwLog::endl;
-      status = CloseDataFile();
-    }
-  } else {
-    //  Don't try to close a nonsegmented file; we will explicitly
-    //  use CloseDataFile() later.
-  }
-  return status;
+				Int_t status = kFileHandleNotConfigured;
+				Int_t last_runsegment;
+				if (fRunIsSegmented){
+								last_runsegment = *fRunSegmentIterator;
+								fRunSegmentIterator++;
+								if (fRunSegmentIterator <= fRunSegments.end()){
+												QwMessage << "Closing run segment " << last_runsegment <<"."
+																<< QwLog::endl;
+												status = CloseDataFile();
+								}
+				} else {
+								//  Don't try to close a nonsegmented file; we will explicitly
+								//  use CloseDataFile() later.
+				}
+				return status;
 }
 
 //------------------------------------------------------------
 
 Int_t QwEventBuffer::OpenNextSegment()
 {
-  Int_t status;
-  if (! fRunIsSegmented){
-    /*  We are processing a non-segmented run.            *
-     *  We should not have entered this routine, but      *
-     *  since we are here, don't do anything.             */
-    status = kRunNotSegmented;
+				Int_t status;
+				if (! fRunIsSegmented){
+								/*  We are processing a non-segmented run.            *
+								 *  We should not have entered this routine, but      *
+								 *  since we are here, don't do anything.             */
+								status = kRunNotSegmented;
 
-  } else if (fRunSegments.size()==0){
-    /*  There are actually no file segments located.      *
-     *  Return "kNoNextDataFile", but don't print an      *
-     *  error message.                                    */
-    status = kNoNextDataFile;
+				} else if (fRunSegments.size()==0){
+								/*  There are actually no file segments located.      *
+								 *  Return "kNoNextDataFile", but don't print an      *
+								 *  error message.                                    */
+								status = kNoNextDataFile;
 
-  } else if (fRunSegmentIterator >= fRunSegments.begin() &&
-             fRunSegmentIterator <  fRunSegments.end() ) {
-    QwMessage << "Trying to open run segment " << *fRunSegmentIterator << QwLog::endl;
-    status = OpenDataFile(DataFile(fCurrentRun,*fRunSegmentIterator),"R");
+				} else if (fRunSegmentIterator >= fRunSegments.begin() &&
+												fRunSegmentIterator <  fRunSegments.end() ) {
+								QwMessage << "Trying to open run segment " << *fRunSegmentIterator << QwLog::endl;
+								status = OpenDataFile(DataFile(fCurrentRun,*fRunSegmentIterator),"R");
 
-  } else if (fRunSegmentIterator == fRunSegments.end() ) {
-    /*  We have reached the last run segment. */
-    QwMessage << "There are no run segments remaining." << QwLog::endl;
-    status = kNoNextDataFile;
+				} else if (fRunSegmentIterator == fRunSegments.end() ) {
+								/*  We have reached the last run segment. */
+								QwMessage << "There are no run segments remaining." << QwLog::endl;
+								status = kNoNextDataFile;
 
-  } else {
-    QwError << "QwEventBuffer::OpenNextSegment(): Unrecognized error" << QwLog::endl;
-    status = CODA_ERROR;
-  }
-  return status;
+				} else {
+								QwError << "QwEventBuffer::OpenNextSegment(): Unrecognized error" << QwLog::endl;
+								status = CODA_ERROR;
+				}
+				return status;
 }
 
 
@@ -1195,29 +1454,29 @@ Int_t QwEventBuffer::OpenNextSegment()
 //call this routine if we've selected the run segment by hand
 Int_t QwEventBuffer::OpenDataFile(UInt_t current_run, Short_t seg)
 {
-  fCurrentRun = current_run;
+				fCurrentRun = current_run;
 
-  fRunSegments.clear();
-  fRunIsSegmented = kTRUE;
+				fRunSegments.clear();
+				fRunIsSegmented = kTRUE;
 
-  fRunSegments.push_back(seg);
-  fRunSegmentIterator = fRunSegments.begin();
-  return OpenNextSegment();
+				fRunSegments.push_back(seg);
+				fRunSegmentIterator = fRunSegments.begin();
+				return OpenNextSegment();
 }
 
 //------------------------------------------------------------
 //call this routine if the run is not segmented
 Int_t QwEventBuffer::OpenDataFile(UInt_t current_run, const TString rw)
 {
-  Int_t status;
-  fCurrentRun = current_run;
-  DataFile(fCurrentRun);
-  if (DataFileIsSegmented()){
-    status = OpenNextSegment();
-  } else {
-    status = OpenDataFile(DataFile(fCurrentRun),rw);
-  }
-  return status;
+				Int_t status;
+				fCurrentRun = current_run;
+				DataFile(fCurrentRun);
+				if (DataFileIsSegmented()){
+								status = OpenNextSegment();
+				} else {
+								status = OpenDataFile(DataFile(fCurrentRun),rw);
+				}
+				return status;
 }
 
 
@@ -1225,135 +1484,135 @@ Int_t QwEventBuffer::OpenDataFile(UInt_t current_run, const TString rw)
 //------------------------------------------------------------
 Int_t QwEventBuffer::OpenDataFile(const TString filename, const TString rw)
 {
-  if (fEvStreamMode==fEvStreamNull){
-    QwDebug << "QwEventBuffer::OpenDataFile:  File handle doesn't exist.\n"
-	    << "                              Try to open a new file handle!"
-	    << QwLog::endl;
-    fEvStream = new Decoder::THaCodaFile();
-    fEvStreamMode = fEvStreamFile;
-  } else if (fEvStreamMode!=fEvStreamFile){
-    QwError << "QwEventBuffer::OpenDataFile:  The stream is not configured as an input\n"
-	    << "                              file stream!  Can't deal with this!\n"
-	    << QwLog::endl;
-    exit(1);
-  }
-  fDataFile = filename;
+				if (fEvStreamMode==fEvStreamNull){
+								QwDebug << "QwEventBuffer::OpenDataFile:  File handle doesn't exist.\n"
+												<< "                              Try to open a new file handle!"
+												<< QwLog::endl;
+								fEvStream = new Decoder::THaCodaFile();
+								fEvStreamMode = fEvStreamFile;
+				} else if (fEvStreamMode!=fEvStreamFile){
+								QwError << "QwEventBuffer::OpenDataFile:  The stream is not configured as an input\n"
+												<< "                              file stream!  Can't deal with this!\n"
+												<< QwLog::endl;
+								exit(1);
+				}
+				fDataFile = filename;
 
-  if (rw.Contains("w",TString::kIgnoreCase)) {
-    // If we open a file for write access, let's suppose
-    // we've given the path we want to use.
-    QwMessage << "Opening data file:  " << fDataFile << QwLog::endl;
-  } else {
-    //  Let's try to find the data file for read access.
-    glob_t globbuf;
-    glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
-    if (globbuf.gl_pathc == 0){
-      //  Can't find the file; try in the "fDataDirectory".
-      fDataFile = fDataDirectory + filename;
-      glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
-    }
-    if (globbuf.gl_pathc == 0){
-      //  Can't find the file; try gzipped.
-      fDataFile = filename + ".gz";
-      glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
-    }
-    if (globbuf.gl_pathc == 0){
-      //  Can't find the file; try gzipped in the "fDataDirectory".
-      fDataFile = fDataDirectory + filename + ".gz";
-      glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
-    }
-    if (globbuf.gl_pathc == 1){
-      QwMessage << "Opening data file:  " << fDataFile << QwLog::endl;
-    } else {
-      fDataFile = filename;
-      QwError << "Unable to find "
-              << filename.Data()  << " or "
-              << (fDataDirectory + filename).Data()  << QwLog::endl;
-    }
-    globfree(&globbuf);
-  }
-  return fEvStream->codaOpen(fDataFile, rw);
+				if (rw.Contains("w",TString::kIgnoreCase)) {
+								// If we open a file for write access, let's suppose
+								// we've given the path we want to use.
+								QwMessage << "Opening data file:  " << fDataFile << QwLog::endl;
+				} else {
+								//  Let's try to find the data file for read access.
+								glob_t globbuf;
+								glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
+								if (globbuf.gl_pathc == 0){
+												//  Can't find the file; try in the "fDataDirectory".
+												fDataFile = fDataDirectory + filename;
+												glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
+								}
+								if (globbuf.gl_pathc == 0){
+												//  Can't find the file; try gzipped.
+												fDataFile = filename + ".gz";
+												glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
+								}
+								if (globbuf.gl_pathc == 0){
+												//  Can't find the file; try gzipped in the "fDataDirectory".
+												fDataFile = fDataDirectory + filename + ".gz";
+												glob(fDataFile.Data(), GLOB_ERR, NULL, &globbuf);
+								}
+								if (globbuf.gl_pathc == 1){
+												QwMessage << "Opening data file:  " << fDataFile << QwLog::endl;
+								} else {
+												fDataFile = filename;
+												QwError << "Unable to find "
+																<< filename.Data()  << " or "
+																<< (fDataDirectory + filename).Data()  << QwLog::endl;
+								}
+								globfree(&globbuf);
+				}
+				return fEvStream->codaOpen(fDataFile, rw);
 }
 
 
 //------------------------------------------------------------
 Int_t QwEventBuffer::CloseDataFile()
 {
-  Int_t status = kFileHandleNotConfigured;
-  if (fEvStreamMode==fEvStreamFile){
-    status = fEvStream->codaClose();
-  }
-  return status;
+				Int_t status = kFileHandleNotConfigured;
+				if (fEvStreamMode==fEvStreamFile){
+								status = fEvStream->codaClose();
+				}
+				return status;
 }
 
 //------------------------------------------------------------
 Int_t QwEventBuffer::OpenETStream(TString computer, TString session, int mode,
-				  const TString stationname)
+								const TString stationname)
 {
-  Int_t status = CODA_OK;
-  if (fEvStreamMode==fEvStreamNull){
+				Int_t status = CODA_OK;
+				if (fEvStreamMode==fEvStreamNull){
 #ifdef __CODA_ET
-    if (stationname != ""){
-      fEvStream = new THaEtClient(computer, session, mode, stationname);
-    } else {
-      fEvStream = new THaEtClient(computer, session, mode);
-    }
-    fEvStreamMode = fEvStreamET;
+								if (stationname != ""){
+												fEvStream = new THaEtClient(computer, session, mode, stationname);
+								} else {
+												fEvStream = new THaEtClient(computer, session, mode);
+								}
+								fEvStreamMode = fEvStreamET;
 #endif
-  }
-  return status;
+				}
+				return status;
 }
 
 //------------------------------------------------------------
 Int_t QwEventBuffer::CloseETStream()
 {
-  Int_t status = kFileHandleNotConfigured;
-  if (fEvStreamMode==fEvStreamFile){
-    status = fEvStream->codaClose();
-  }
-  return status;
+				Int_t status = kFileHandleNotConfigured;
+				if (fEvStreamMode==fEvStreamFile){
+								status = fEvStream->codaClose();
+				}
+				return status;
 }
 
 //------------------------------------------------------------
 Int_t QwEventBuffer::CheckForMarkerWords(QwSubsystemArray &subsystems)
 {
-  QwDebug << "QwEventBuffer::GetMarkerWordList:  start function" <<QwLog::endl;
-  fThisRocBankLabel = fROC;
-  fThisRocBankLabel = fThisRocBankLabel<<32;
-  fThisRocBankLabel += fSubbankTag;
-  if (fMarkerList.count(fThisRocBankLabel)==0){
-    std::vector<UInt_t> tmpvec;
-    subsystems.GetMarkerWordList(fROC, fSubbankTag, tmpvec);
-    fMarkerList.emplace(fThisRocBankLabel, tmpvec);
-    fOffsetList.emplace(fThisRocBankLabel, std::vector<UInt_t>(tmpvec.size(),0));
-  }
-  QwDebug << "QwEventBuffer::GetMarkerWordList:  fMarkerList.count(fThisRocBankLabel)==" 
-	  << fMarkerList.count(fThisRocBankLabel) 
-	  << " fMarkerList.at(fThisRocBankLabel).size()==" 
-	  << fMarkerList.at(fThisRocBankLabel).size()
-	  << QwLog::endl;
-  return fMarkerList.at(fThisRocBankLabel).size();
+				// QwDebug << "QwEventBuffer::GetMarkerWordList:  start function" <<QwLog::endl;
+				fThisRocBankLabel = fROC;
+				fThisRocBankLabel = fThisRocBankLabel<<32;
+				fThisRocBankLabel += fSubbankTag;
+				if (fMarkerList.count(fThisRocBankLabel)==0){
+								std::vector<UInt_t> tmpvec;
+								subsystems.GetMarkerWordList(fROC, fSubbankTag, tmpvec);
+								fMarkerList.emplace(fThisRocBankLabel, tmpvec);
+								fOffsetList.emplace(fThisRocBankLabel, std::vector<UInt_t>(tmpvec.size(),0));
+				}
+				QwDebug << "QwEventBuffer::GetMarkerWordList:  fMarkerList.count(fThisRocBankLabel)==" 
+								<< fMarkerList.count(fThisRocBankLabel) 
+								<< " fMarkerList.at(fThisRocBankLabel).size()==" 
+								<< fMarkerList.at(fThisRocBankLabel).size()
+								<< QwLog::endl;
+				return fMarkerList.at(fThisRocBankLabel).size();
 }
 
 UInt_t QwEventBuffer::GetMarkerWord(UInt_t markerID){
-  return fMarkerList.at(fThisRocBankLabel).at(markerID);
+				return fMarkerList.at(fThisRocBankLabel).at(markerID);
 };
 
 
 UInt_t QwEventBuffer::FindMarkerWord(UInt_t markerindex, UInt_t* buffer, UInt_t num_words){
-  UInt_t markerpos  = fOffsetList.at(fThisRocBankLabel).at(markerindex);
-  UInt_t markerval  = fMarkerList.at(fThisRocBankLabel).at(markerindex);
-  if (markerpos < num_words && buffer[markerpos] == markerval){
-    // The marker word is where it was last time
-    return markerpos;
-  } else {
-    for (size_t i=0; i<num_words; i++){
-      if (buffer[i] == markerval){
-	fOffsetList.at(fThisRocBankLabel).at(markerindex) = i;
-	markerpos = i;
-	break;
-      }
-    }
-  }
-  return markerpos;
+				UInt_t markerpos  = fOffsetList.at(fThisRocBankLabel).at(markerindex);
+				UInt_t markerval  = fMarkerList.at(fThisRocBankLabel).at(markerindex);
+				if (markerpos < num_words && buffer[markerpos] == markerval){
+								// The marker word is where it was last time
+								return markerpos;
+				} else {
+								for (size_t i=0; i<num_words; i++){
+												if (buffer[i] == markerval){
+																fOffsetList.at(fThisRocBankLabel).at(markerindex) = i;
+																markerpos = i;
+																break;
+												}
+								}
+				}
+				return markerpos;
 }

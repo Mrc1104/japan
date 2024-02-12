@@ -98,9 +98,9 @@ Int_t CodaDecoder::Init()
 Int_t CodaDecoder::LoadEvent( const UInt_t* evbuffer )
 {
   // Main engine for decoding, called by public LoadEvent() methods
-
+ 
   assert(evbuffer);
-
+  // I think a lot of this error checking is done in QwEventBuffer already ... 
   if (fDebugFile) {
     *fDebugFile << "CodaDecode:: Loading event  ... " << endl
                 << "evbuffer ptr " << hex << evbuffer << dec << endl;

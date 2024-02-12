@@ -458,42 +458,42 @@ void QwSubsystemArrayParity::Ratio(
 }
 
 Bool_t QwSubsystemArrayParity::ApplySingleEventCuts(){
-  Int_t CountFalse;
-  Bool_t status;
-  UInt_t ErrorFlag;
-  fErrorFlag=0;  // Testing if event number is within bad Event Range cut
-  if( CheckBadEventRange() )
-    fErrorFlag |=kBadEventRangeError;
-  
-  VQwSubsystemParity *subsys_parity;
-  CountFalse=0;
-  if (!empty()){
-    for (iterator subsys = begin(); subsys != end(); ++subsys){
-      subsys_parity=dynamic_cast<VQwSubsystemParity*>((subsys)->get());
-      status=subsys_parity->ApplySingleEventCuts();
-      ErrorFlag = subsys_parity->GetEventcutErrorFlag();
-      if ((ErrorFlag & kEventCutMode3)==kEventCutMode3)//we only care about the event cut flag in event cut mode 3
-	fErrorFlag |= ErrorFlag; 
-      if (!status)
-      {
-	if ((ErrorFlag&kGlobalCut)==kGlobalCut){
-	  CountFalse++;
-	  fErrorFlag |= ErrorFlag; //we need the error code for failed events in event mode 2 for beam trips and etc.
-	}
-      }
-      
+				Int_t CountFalse;
+				Bool_t status;
+				UInt_t ErrorFlag;
+				fErrorFlag=0;  // Testing if event number is within bad Event Range cut
+				if( CheckBadEventRange() )
+								fErrorFlag |=kBadEventRangeError;
 
-    }
-  }
-  if (CountFalse > 0)
-    status = kFALSE;
-  else
-    status = kTRUE;
+				VQwSubsystemParity *subsys_parity;
+				CountFalse=0;
+				if (!empty()){
+								for (iterator subsys = begin(); subsys != end(); ++subsys){
+												subsys_parity=dynamic_cast<VQwSubsystemParity*>((subsys)->get());
+												status=subsys_parity->ApplySingleEventCuts();
+												ErrorFlag = subsys_parity->GetEventcutErrorFlag();
+												if ((ErrorFlag & kEventCutMode3)==kEventCutMode3)//we only care about the event cut flag in event cut mode 3
+																fErrorFlag |= ErrorFlag; 
+												if (!status)
+												{
+																if ((ErrorFlag&kGlobalCut)==kGlobalCut){
+																				CountFalse++;
+																				fErrorFlag |= ErrorFlag; //we need the error code for failed events in event mode 2 for beam trips and etc.
+																}
+												}
 
-  //  Propagate all error codes to derived objects in the subsystems.
-  UpdateErrorFlag();
 
-  return status;
+								}
+				}
+				if (CountFalse > 0)
+								status = kFALSE;
+				else
+								status = kTRUE;
+
+				//  Propagate all error codes to derived objects in the subsystems.
+				UpdateErrorFlag();
+
+				return status;
 }
 
 

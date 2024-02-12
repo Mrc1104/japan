@@ -87,11 +87,11 @@ public:
 protected:
   virtual Int_t  LoadIfFlagData(const UInt_t* evbuffer);
 
-  Int_t FindRocs(const UInt_t *evbuffer);  // CODA2 version
-  Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
+  virtual Int_t FindRocs(const UInt_t *evbuffer);  // CODA2 version
+  virtual Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
   Int_t roc_decode( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );
   Int_t bank_decode( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );
-  Int_t physics_decode( const UInt_t* evbuffer );
+  virtual Int_t physics_decode( const UInt_t* evbuffer );
 
   void CompareRocs();
   void ChkFbSlot( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );

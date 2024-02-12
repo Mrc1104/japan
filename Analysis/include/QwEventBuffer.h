@@ -23,6 +23,7 @@
 #include <unordered_map>
 
 #include "CodaDecoder.h"
+#include "Helper.h"
 
 using namespace Decoder;
 
@@ -119,7 +120,8 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
 
   Bool_t IsPhysicsEvent() {
     // fEvtType is an unsigned integer, hence always positive
-    return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
+    // return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
+		return (event_type <= MAX_PHYS_EVTYPE);
   };
 
   Int_t GetPhysicsEventNumber() {return fNumPhysicsEvents;};
@@ -133,6 +135,16 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
 
   Int_t  GetEvent();
   Int_t  WriteEvent(int* buffer);
+
+  // Virtual Functions inherited from CodaDecoder.h
+  Int_t  DecodeEvent(const UInt_t* evbuffer);
+  Int_t  physics_decode( const UInt_t* evbuffer );
+  Int_t  interpretCoda3( const UInt_t* evbuffer );
+  Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
+  Int_t FindRocs(const UInt_t *evbuffer);  // CODA2 version
+  Int_t trigBankDecode( const UInt_t* evbuffer );
+  Int_t roc_decode( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );
+
 
   Bool_t IsOnline(){return fOnline;};
 
