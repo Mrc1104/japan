@@ -272,6 +272,7 @@ Int_t main(Int_t argc, Char_t* argv[])
 												//  First, do processing of non-physics events...
 												if (eventbuffer.IsROCConfigurationEvent()) {
 																//  Send ROC configuration event data to the subsystem objects.
+																//  TODO: FIllSubsystemConfigurationData needs refactored
 																eventbuffer.FillSubsystemConfigurationData(detectors);
 												}
 
