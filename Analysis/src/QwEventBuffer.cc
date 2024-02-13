@@ -32,7 +32,8 @@ void sigusr_handler(int sig)
 #include "THaEtClient.h"
 #endif
 
-std::string QwEventBuffer::fDefaultDataDirectory = "/adaq1/data1/apar";
+//std::string QwEventBuffer::fDefaultDataDirectory = "/adaq1/data1/apar";
+std::string QwEventBuffer::fDefaultDataDirectory = "/home/daq/data/mock_data/";
 std::string QwEventBuffer::fDefaultDataFileStem = "QwRun_";
 std::string QwEventBuffer::fDefaultDataFileExtension = "log";
 
