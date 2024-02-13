@@ -70,10 +70,6 @@ QwEventBuffer::QwEventBuffer()
   fCleanParameter[0] = 0.0;
   fCleanParameter[1] = 0.0;
   fCleanParameter[2] = 0.0;
-
-  SetCodaVersion(3);	 
-  // SetCodaVersion(2);
-
 }
 
 /**
@@ -487,8 +483,16 @@ Int_t QwEventBuffer::GetEvent()
   }
   if (status == CODA_OK){
     // Coda Data was loaded correctly
-    // DecodeEventIDBank((UInt_t*)(fEvStream->getEvBuffer())); // parse first word of the Coda Data
-    DecodeEvent((UInt_t*)(fEvStream->getEvBuffer()));
+   	 
+  	SetCodaVersion( fEvStream->getCodaVersion() );
+   	if(fDataVersion == 2){
+	 		DecodeEventIDBank((UInt_t*)(fEvStream->getEvBuffer()));
+		}	else if(fDataVersion == 3){ // fDataVersion == 3
+    	DecodeEvent((UInt_t*)(fEvStream->getEvBuffer()));
+		} else {
+    	QwError << "QwEventBuffer::GetEvent:  Coda Version is not recognized" << QwLog::endl;
+  	}
+
   } else {
     QwError << "QwEventBuffer::GetEvent:  CODA event is not recognized" << QwLog::endl;
   }
@@ -501,15 +505,9 @@ Int_t QwEventBuffer::physics_decode( const UInt_t* evbuffer )
 	// returns a list of the rocs found
 	// stores the # of rocs in nroc
 	// stores 
-  if( fDataVersion == 3 ) {
-    event_num = tbank.evtNum;
-    fEvtNumber = tbank.evtNum;
-    FindRocsCoda3(evbuffer);
-  } else {
-    event_num = evbuffer[4];
-    fEvtNumber = evbuffer[4];
-    FindRocs(evbuffer);
-  }
+  event_num = tbank.evtNum;
+  fEvtNumber = tbank.evtNum;
+  FindRocsCoda3(evbuffer);
  
   return HED_OK;
 }
@@ -532,12 +530,7 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
   blkidx = 0;
 
   // Determine event type
-  if (fDataVersion == 2) {
-    event_type = evbuffer[1]>>16;
-    fEvtType = event_type;
-  } else {  // CODA version 3
-    interpretCoda3(evbuffer);  // this defines event_type
-  }
+  interpretCoda3(evbuffer);  // this defines event_type
   Int_t ret = HED_OK;
 
   if (event_type == PRESTART_EVTYPE ) {
@@ -556,17 +549,12 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
   }
 
   else if( event_type == PRESCALE_EVTYPE || event_type == TS_PRESCALE_EVTYPE ) {
-    if (fDataVersion == 2) {
-      ret = prescale_decode_coda2(evbuffer);
-    } else {
-      ret = prescale_decode_coda3(evbuffer);
-    }
+  	ret = prescale_decode_coda3(evbuffer);
     if (ret != HED_OK ) return ret;
   }
 
   else if( event_type <= MAX_PHYS_EVTYPE && !PrescanModeEnabled() ) {
-    if( fDataVersion == 3 &&
-        (ret = trigBankDecode(evbuffer)) != HED_OK ) {
+    if( (ret = trigBankDecode(evbuffer)) != HED_OK ) {
       return ret;
     }
     ret = physics_decode(evbuffer);
@@ -674,47 +662,6 @@ Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
   }
 
   return 1;
-}
-
-Int_t QwEventBuffer::FindRocs(const UInt_t *evbuffer) 
-{
-// The (old) decoding of CODA 2.* event buffer to find pointers and lengths of ROCs
-// ROC = ReadOut Controller, synonymous with "crate".
-
-  assert( evbuffer );
-  Int_t status = HED_OK;
-
-  // The following line is not meaningful for CODA3
-  if( (evbuffer[1]&0xffff) != 0x10cc ) std::cout<<"Warning, header error"<<std::endl;
-  if( event_type > MAX_PHYS_EVTYPE ) std::cout<<"Warning, Event type makes no sense"<<std::endl;
-  std::for_each(ALL(rocdat), []( RocDat_t& ROC ) { ROC.clear(); });
-  // Set pos to start of first ROC data bank
-  UInt_t pos = evbuffer[2]+3;  // should be 7
-  nroc = 0;
-  while( pos+1 < event_length && nroc < MAXROC ) {
-    UInt_t len  = evbuffer[pos];
-    UInt_t iroc = (evbuffer[pos+1]&0xff0000)>>16;
-    if( iroc>=MAXROC ) {
-      QwMessage << "ERROR in EvtTypeHandler::FindRocs "<<QwLog::endl;
-      QwMessage << "  illegal ROC number " <<std::dec<<iroc<<QwLog::endl;
-      return HED_ERR;
-    }
-    // Save position and length of each found ROC data block
-    rocdat[iroc].pos  = pos;
-    rocdat[iroc].len  = len;
-    irn[nroc++] = iroc;
-    pos += len+1;
-  }
-
-  if (QwDebug) {
-    QwDebug << "CodaDecode:: num rocs "<<std::dec<<nroc<<QwLog::endl;
-    for( UInt_t i = 0; i < nroc; i++ ) {
-      UInt_t iroc = irn[i];
-      QwDebug<< "   CodaDecode::   roc  num "<<iroc<<"   pos "<<rocdat[iroc].pos<<"     len "<<rocdat[iroc].len<<QwLog::endl;
-    }
-  }
-
-  return status;
 }
 
 Int_t QwEventBuffer::trigBankDecode( const UInt_t* evbuffer )
@@ -995,6 +942,8 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
   ///      The configuration event for a ROC must have the same
   ///      subbank structure as the physics events for that ROC.
   Bool_t okay = kTRUE;
+  // TODO:
+  // What is this rocnum?
   UInt_t rocnum = fEvtType - 0x90;
   QwMessage << Form("Length: %d; Tag: 0x%x; Bank data type: 0x%x; Bank ID num: 0x%x; ",
 		    fEvtLength, fEvtTag, fBankDataType, fIDBankNum)
@@ -1003,7 +952,10 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
 	    << QwLog::endl;
   //  Loop through the data buffer in this event.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
-  DecodeEvent(localbuff);
+	if(fDataVersion = 2)
+	 		DecodeEventIDBank(localbuff);
+	else
+  	DecodeEvent(localbuff);
   while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
     //  If this bank has further subbanks, restart the loop.
     if (fSubbankType == 0x10) {
@@ -1046,8 +998,11 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
   //  Reload the data buffer and decode the header again, this allows
   //  multiple calls to this function for different subsystem arrays.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
-  // DecodeEventIDBank(localbuff);
-  DecodeEvent(localbuff);
+  
+	if(fDataVersion == 2)
+		DecodeEventIDBank(localbuff);
+	else
+  	DecodeEvent(localbuff);
 
   //  Clear the old event information from the subsystems.
   subsystems.ClearEventData();

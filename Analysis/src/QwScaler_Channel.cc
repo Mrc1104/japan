@@ -183,7 +183,7 @@ Int_t QwScaler_Channel<data_mask,data_shift>::ProcessEvBuffer(UInt_t* buffer, UI
       fValue_Raw_Old = 0;}
 
   } else {
-    QwError << "QwScaler_Channel::ProcessEvBuffer: Not enough words!"<< QwLog::endl;
+    // QwError << "QwScaler_Channel::ProcessEvBuffer: Not enough words!"<< QwLog::endl;
   }
   return words_read;
 }
