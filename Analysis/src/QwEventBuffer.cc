@@ -953,7 +953,7 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
 	    << QwLog::endl;
   //  Loop through the data buffer in this event.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
-	if(fDataVersion = 2)
+	if(fDataVersion == 2)
 	 		DecodeEventIDBank(localbuff);
 	else
   	DecodeEvent(localbuff);
