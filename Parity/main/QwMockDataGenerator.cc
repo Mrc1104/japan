@@ -71,6 +71,7 @@ int main(int argc, char* argv[])
 
   // Event buffer
   QwEventBuffer eventbuffer;
+  eventbuffer.ProcessOptions(gQwOptions);
 
   // Detector array
   QwSubsystemArrayParity detectors(gQwOptions);
@@ -172,7 +173,8 @@ if(1==2){
       std::cout << "Error: could not open file!" << std::endl;
       return 0;
     }
-    eventbuffer.ResetControlParameters();
+		eventbuffer.ResetControlParameters();
+		// mrc -- Strictly speaking, runtype == 1 for Coda3, but I don't believe leaving it as 0 affects anything
     eventbuffer.EncodePrestartEvent(run, 0); // prestart: runnumber, runtype
     eventbuffer.EncodeGoEvent();
 

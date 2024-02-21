@@ -132,6 +132,11 @@ void QwEventBuffer::DefineOptions(QwOptions &options)
   options.AddOptions("ET system options")
     ("ET.exit-on-end", po::value<bool>()->default_value(false),
      "Exit the event loop if the end event is found.  --- Only used in online mode");
+	// When Decoding, the CodaVersion is obtained through the EVIO version
+	// When Encoding, the CodaVersion needs to be set explicitly (default = Coda 3)
+  options.AddOptions("CodaVersion")
+    ("coda-version", po::value<int>()->default_value(3),
+     "Sets the Coda Version.");
 }
 
 void QwEventBuffer::ProcessOptions(QwOptions &options)
@@ -196,6 +201,7 @@ void QwEventBuffer::ProcessOptions(QwOptions &options)
   fChainDataFiles = options.GetValue<bool>("chainfiles");
   fDataFileStem = options.GetValue<string>("codafile-stem");
   fDataFileExtension = options.GetValue<string>("codafile-ext");
+	fDataVersion = options.GetValue<int>("coda-version");
 
   fAllowLowSubbankIDs = options.GetValue<bool>("allow-low-subbank-ids");
 
@@ -485,7 +491,7 @@ Int_t QwEventBuffer::GetEvent()
   if (status == CODA_OK){
     // Coda Data was loaded correctly
    	 
-  	SetCodaVersion( fEvStream->getCodaVersion() );
+  	// SetCodaVersion( fEvStream->getCodaVersion() );
    	if(fDataVersion == 2){
 	 		DecodeEventIDBank((UInt_t*)(fEvStream->getEvBuffer()));
 		}	else if(fDataVersion == 3){ // fDataVersion == 3
