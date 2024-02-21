@@ -626,14 +626,14 @@ Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
   }
 
   /* Sanity check:  Check if number of ROCs matches */
-  if(nroc != tbank.nrocs) {
+  /* if(nroc != tbank.nrocs) {
       printf(" ****ERROR: Trigger and Physics Block sizes do not match (%d != %d)\n",nroc,tbank.nrocs);
 // If you are reading a data file originally written with CODA 2 and then
 // processed (written out) with EVIO 4, it will segfault. Do as it says below.
       printf("This might indicate a file written with EVIO 4 that was a CODA 2 file\n");
       printf("Try  analyzer->SetCodaVersion(2)  in the analyzer script.\n");
       return HED_ERR;
-  }
+  }*/
 
   if (QwDebug) {  // debug
 
@@ -747,19 +747,42 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
 {
   // Encode the data in the elements of the subsystem array
   std::vector<UInt_t> buffer;
-   subsystems.EncodeEventData(buffer);
-
+  subsystems.EncodeEventData(buffer);
   // Add CODA event header
-  std::vector<UInt_t> header;
-  header.push_back((0x0001 << 16) | (0x10 << 8) | 0xCC);
-		// event type | event data type | event ID (0xCC for CODA event)
-  header.push_back(4);	// size of header field
-  header.push_back((0xC000 << 16) | (0x01 << 8) | 0x00);
-		// bank type | bank data type (0x01 for uint32) | bank ID (0x00 for header event)
-  header.push_back(++fEvtNumber); // event number (initialized to 0,
-		// so increment before use to agree with CODA number)
-  header.push_back(1);	// event class
-  header.push_back(0);	// status summary
+ 	std::vector<UInt_t> header;
+	if(fDataVersion == 2){
+  	header.push_back((0x0001 << 16) | (0x10 << 8) | 0xCC);
+			// event type | event data type | event ID (0xCC for CODA event)
+  	header.push_back(4);	// size of header field
+  	header.push_back((0xC000 << 16) | (0x01 << 8) | 0x00);
+			// bank type | bank data type (0x01 for uint32) | bank ID (0x00 for header event)
+  	header.push_back(++fEvtNumber); // event number (initialized to 0,
+			// so increment before use to agree with CODA number)
+  	header.push_back(1);	// event class
+  	header.push_back(0);	// status summary
+	} else{ // fDataVersion == 3 
+		// header.push_back(1);
+		// mrc ... what if I just hardcode the example TI trigger bank?
+		header.push_back(0xFF501001);
+		header.push_back(0x0000000b); // word count for Trigger Bank
+		header.push_back(0xFF212001); // 0x001 = # of ROCs (is this an issue if we have multiple rocs?)
+		header.push_back(0x010a0004); 
+		// evtnum is held by a 64 bit ... for now we set the upper 32 bits to 0
+		header.push_back(0x0);
+		header.push_back(++fEvtNumber );
+
+  	int localtime = (int) time(0);
+		// evttime is held by a 64 bit ... for now we set the upper 32 bits to 0
+		header.push_back(0x0);
+		header.push_back(localtime);
+		header.push_back(0x1850001);
+		header.push_back(0xc0da);
+		header.push_back(0x2010002);
+		header.push_back(0xc0da01);	
+		header.push_back(0xc0da02);	
+
+	}
+
 
   // Copy the encoded event buffer into an array of integers,
   // as expected by the CODA routines.
@@ -787,7 +810,10 @@ Int_t QwEventBuffer::EncodePrestartEvent(int runnumber, int runtype)
   int buffer[5];
   int localtime = (int) time(0);
   buffer[0] = 4; // length
-  buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
+	if(fDataVersion == 2)
+  	buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
+	else
+		buffer[1] = ((0xffd1 << 16) | (0x01 << 8) );
   buffer[2] = localtime;
   buffer[3] = runnumber;
   buffer[4] = runtype;
@@ -800,7 +826,10 @@ Int_t QwEventBuffer::EncodeGoEvent()
   int localtime = (int) time(0);
   int eventcount = 0;
   buffer[0] = 4; // length
-  buffer[1] = ((kGO_EVENT << 16) | (0x01 << 8) | 0xCC);
+	if(fDataVersion == 2)
+  	buffer[1] = ((kGO_EVENT << 16) | (0x01 << 8) | 0xCC);
+	else
+  	buffer[1] = ((0xffd2 << 16) | (0x01 << 8) );
   buffer[2] = localtime;
   buffer[3] = 0; // (unused)
   buffer[4] = eventcount;
@@ -813,7 +842,10 @@ Int_t QwEventBuffer::EncodePauseEvent()
   int localtime = (int) time(0);
   int eventcount = 0;
   buffer[0] = 4; // length
-  buffer[1] = ((kPAUSE_EVENT << 16) | (0x01 << 8) | 0xCC);
+	if(fDataVersion == 2)
+  	buffer[1] = ((kPAUSE_EVENT << 16) | (0x01 << 8) | 0xCC);
+	else
+  	buffer[1] = ((0xffd3 << 16) | (0x01 << 8) );
   buffer[2] = localtime;
   buffer[3] = 0; // (unused)
   buffer[4] = eventcount;
@@ -826,7 +858,10 @@ Int_t QwEventBuffer::EncodeEndEvent()
   int localtime = (int) time(0);
   int eventcount = 0;
   buffer[0] = 4; // length
-  buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
+	if(fDataVersion == 2)
+  	buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
+	else
+  	buffer[1] = ((0xffd4 << 16) | (0x01 << 8) );
   buffer[2] = localtime;
   buffer[3] = 0; // (unused)
   buffer[4] = eventcount;
