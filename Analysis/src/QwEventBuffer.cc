@@ -538,8 +538,8 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
 
   // Determine event type
   interpretCoda3(evbuffer);  // this defines event_type
-  Int_t ret = HED_OK;
-
+  
+	Int_t ret = HED_OK;
   if (event_type == PRESTART_EVTYPE ) {
     // Usually prestart is the first 'event'.  Call SetRunTime() to
     // re-initialize the crate map since we now know the run time.
@@ -584,10 +584,11 @@ Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
   fEvtType = event_type;
 
   if( bank_tag < 0xff00 ) { // User event type
-    if( QwDebug )    // if set, character data gets printed.
-      debug_print(evbuffer);
-
-    QwDebug << " User defined event type " << event_type << QwLog::endl;
+		if( (event_type != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) )
+    	if ( QwDebug )    // if set, character data gets printed.
+    			QwDebug << " User defined event type " << event_type << QwLog::endl;
+      		debug_print(evbuffer);
+			}
   }
     QwDebug << "CODA 3  Event type " << event_type << " trigger_bits "
                 << trigger_bits << "  tsEvType  " << tsEvType
@@ -767,20 +768,18 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
   	header.push_back(1);	// event class
   	header.push_back(0);	// status summary
 	} else{ // fDataVersion == 3 
-		// header.push_back(1);
-		// mrc ... what if I just hardcode the example TI trigger bank?
 		header.push_back(0xFF501001);
 		header.push_back(0x0000000b); // word count for Trigger Bank
 		header.push_back(0xFF212001); // 0x001 = # of ROCs (is this an issue if we have multiple rocs?)
 		header.push_back(0x010a0004); 
 		// evtnum is held by a 64 bit ... for now we set the upper 32 bits to 0
-		header.push_back(0x0);
 		header.push_back(++fEvtNumber );
+		header.push_back(0x0);
 
   	int localtime = (int) time(0);
-		// evttime is held by a 64 bit ... for now we set the upper 32 bits to 0
-		header.push_back(0x0);
+		// evttime is held by a 64 bit (bits 0-48 is the time) ... for now we set the upper 32 bits to 0
 		header.push_back(localtime);
+		header.push_back(0x0);
 		header.push_back(0x1850001);
 		header.push_back(0xc0da);
 		header.push_back(0x2010002);
