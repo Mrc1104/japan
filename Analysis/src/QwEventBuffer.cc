@@ -132,11 +132,9 @@ void QwEventBuffer::DefineOptions(QwOptions &options)
   options.AddOptions("ET system options")
     ("ET.exit-on-end", po::value<bool>()->default_value(false),
      "Exit the event loop if the end event is found.  --- Only used in online mode");
-	// When Decoding, the CodaVersion is obtained through the EVIO version
-	// When Encoding, the CodaVersion needs to be set explicitly (default = Coda 3)
   options.AddOptions("CodaVersion")
     ("coda-version", po::value<int>()->default_value(3),
-     "Sets the Coda Version.");
+     "Sets the Coda Version. Allowed values = {2,3}. \nThis is needed for writing and reading mock data. Mock data needs to be written and read with the same Coda Version.");
 }
 
 void QwEventBuffer::ProcessOptions(QwOptions &options)
@@ -202,6 +200,11 @@ void QwEventBuffer::ProcessOptions(QwOptions &options)
   fDataFileStem = options.GetValue<string>("codafile-stem");
   fDataFileExtension = options.GetValue<string>("codafile-ext");
 	fDataVersion = options.GetValue<int>("coda-version");
+  if(fDataVersion != 2 && fDataVersion != 3){
+		QwError << "Invalid Coda Version. Only versions 2 and 3 are supported. "
+						<< "Please set using --coda-version 2(3)" << QwLog::endl;
+    exit(EXIT_FAILURE);
+	}
 
   fAllowLowSubbankIDs = options.GetValue<bool>("allow-low-subbank-ids");
 
