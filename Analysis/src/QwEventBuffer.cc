@@ -493,20 +493,43 @@ Int_t QwEventBuffer::GetEvent()
   }
   if (status == CODA_OK){
     // Coda Data was loaded correctly
-   	 
-  	// SetCodaVersion( fEvStream->getCodaVersion() );
-   	if(fDataVersion == 2){
-	 		DecodeEventIDBank((UInt_t*)(fEvStream->getEvBuffer()));
-		}	else if(fDataVersion == 3){ // fDataVersion == 3
-    	DecodeEvent((UInt_t*)(fEvStream->getEvBuffer()));
-		} else {
+    UInt_t* evBuffer = (UInt_t*)fEvStream->getEvBuffer();
+  	Int_t fDataVersionVerify = VerifyCodaVersion(evBuffer[1]);
+		
+		if( (fDataVersion != fDataVersionVerify) && (fDataVersionVerify != 0 )){
     	QwError << "QwEventBuffer::GetEvent:  Coda Version is not recognized" << QwLog::endl;
-  	}
-
+			QwError << "fDataVersion == " << fDataVersion 
+							  << ", but it looks like the data is from Coda Version "
+							  << fDataVersionVerify
+							  << "\nTry running with --coda-version " << fDataVersionVerify
+								<< "\nExiting ... " << QwLog::endl;
+    	globalEXIT = 1;
+		} else if(fDataVersion == 2){
+	 		DecodeEventIDBank(evBuffer);
+		}	else { // fDataVersion == 3
+    	DecodeEvent(evBuffer);
+		}
   } else {
     QwError << "QwEventBuffer::GetEvent:  CODA event is not recognized" << QwLog::endl;
   }
   return status;
+}
+
+// tries to figure out what Coda Version the Data is
+// returns: 2 -- Coda Version 2
+// 					3 -- Coda Version 3
+// 					0 -- Unknown (Could be a EPICs Event or a ROCConfiguration)
+Int_t QwEventBuffer::VerifyCodaVersion( const UInt_t header)
+{
+	int top = (header & 0xff000000) >> 24;
+	int bot = (header & 0xff      );
+	Int_t ret = 0;
+	if( (top == 0xff) && (bot != 0xcc) ){
+		ret = 3; // Coda 3	
+	} else if( (top != 0xff) && (bot == 0xcc) ){
+		ret = 2; // Coda 2
+	} 
+	return ret;
 }
 
 // Modified from CodaDecoder.h
@@ -587,7 +610,7 @@ Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
   fEvtType = event_type;
 
   if( bank_tag < 0xff00 ) { // User event type
-		if( (event_type != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) )
+		if( (event_type != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
     	if ( QwDebug )    // if set, character data gets printed.
     			QwDebug << " User defined event type " << event_type << QwLog::endl;
       		debug_print(evbuffer);

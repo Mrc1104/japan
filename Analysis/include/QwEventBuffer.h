@@ -131,16 +131,18 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
   Bool_t GetNextEventRange();
   Bool_t GetNextRunRange();
   Bool_t GetNextRunNumber();
+	Int_t VerifyCodaVersion( const UInt_t header);
 
   Int_t GetNextEvent();
 
   Int_t  GetEvent();
   Int_t  WriteEvent(int* buffer);
 
+
   // Virtual Functions inherited from CodaDecoder.h
-  Int_t  DecodeEvent(const UInt_t* evbuffer);
-  Int_t  physics_decode( const UInt_t* evbuffer );
-  Int_t  interpretCoda3( const UInt_t* evbuffer );
+  Int_t DecodeEvent(const UInt_t* evbuffer);
+  Int_t physics_decode( const UInt_t* evbuffer );
+  Int_t interpretCoda3( const UInt_t* evbuffer );
   Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
   Int_t trigBankDecode( const UInt_t* evbuffer );
   Int_t roc_decode( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );
