@@ -149,7 +149,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
   Bool_t IsOnline(){return fOnline;};
 
   Bool_t IsROCConfigurationEvent(){
-    return (fEvtType>=0x90 && fEvtType<=0xaf);
+    return (fEvtType>=0x90 && fEvtType<=0x18f);
   };
 
   Bool_t IsEPICSEvent(){
