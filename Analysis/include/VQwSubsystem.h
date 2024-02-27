@@ -146,8 +146,12 @@ class VQwSubsystem: virtual public VQwSubsystemCloneable, public MQwHistograms, 
   virtual Int_t ProcessEvBuffer(const UInt_t event_type, const ROCID_t roc_id, const BankID_t bank_id, UInt_t* buffer, UInt_t num_words){
     /// TODO:  Subsystems should be changing their ProcessEvBuffer routines to take the event_type as the first
     ///  argument.  But in the meantime, default to just calling the non-event-type-aware ProcessEvBuffer routine.
-    if (((0x1 << (event_type - 1)) & this->GetEventTypeMask()) == 0) return 0;
-    else return this->ProcessEvBuffer(roc_id, bank_id, buffer, num_words);
+    if (((0x1 << (event_type - 1)) & this->GetEventTypeMask()) == 0) {
+			return 0;
+		}
+    else {
+			return this->ProcessEvBuffer(roc_id, bank_id, buffer, num_words);
+		}
   };
   /// TODO:  The non-event-type-aware ProcessEvBuffer routine should be replaced with the event-type-aware version.
   virtual Int_t ProcessEvBuffer(const ROCID_t roc_id, const BankID_t bank_id, UInt_t* buffer, UInt_t num_words) = 0;
@@ -301,30 +305,30 @@ class VQwSubsystem: virtual public VQwSubsystemCloneable, public MQwHistograms, 
   void  SetDataLoaded(Bool_t flag){fIsDataLoaded = flag;};
 
  public:
-  void GetMarkerWordList(const ROCID_t roc_id, const BankID_t bank_id, std::vector<UInt_t> &marker)const{
-    Int_t rocindex  = FindIndex(fROC_IDs, roc_id);
-    if (rocindex>=0){
-      Int_t bankindex = FindIndex(fBank_IDs[rocindex],bank_id);
-      if (bankindex>=0 && fMarkerWords.at(rocindex).at(bankindex).size()>0){
-	std::vector<UInt_t> m = fMarkerWords.at(rocindex).at(bankindex);
-	marker.insert(marker.end(), m.begin(), m.end());
-      }
-    }
-  }
+	void GetMarkerWordList(const ROCID_t roc_id, const BankID_t bank_id, std::vector<UInt_t> &marker)const{
+					Int_t rocindex  = FindIndex(fROC_IDs, roc_id);
+					if (rocindex>=0){
+									Int_t bankindex = FindIndex(fBank_IDs[rocindex],bank_id);
+									if (bankindex>=0 && fMarkerWords.at(rocindex).at(bankindex).size()>0){
+													std::vector<UInt_t> m = fMarkerWords.at(rocindex).at(bankindex);
+													marker.insert(marker.end(), m.begin(), m.end());
+									}
+					}
+	}
 
  protected:
   template < class T >
     Int_t FindIndex(const std::vector<T> &myvec, const T value) const
-    {
-      Int_t index = -1;
-      for (size_t i=0 ; i < myvec.size(); i++ ){
-	if (myvec[i]==value){
-	  index=i;
-	  break;
-	}
-      }
-      return index;
-    };
+		{
+						Int_t index = -1;
+						for (size_t i=0 ; i < myvec.size(); i++ ){
+										if (myvec[i]==value){
+														index=i;
+														break;
+										}
+						}
+						return index;
+		};
   
  protected:
 

@@ -22,6 +22,11 @@
 
 #include <unordered_map>
 
+#include "CodaDecoder.h"
+#include "Helper.h"
+
+using namespace Decoder;
+
 class QwOptions;
 class QwEPICSEvent;
 class VQwSubsystem;
@@ -32,7 +37,7 @@ class QwSubsystemArray;
 
 ///
 /// \ingroup QwAnalysis
-class QwEventBuffer: public MQwCodaControlEvent{
+class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
  public:
   static void DefineOptions(QwOptions &options);
   static void SetDefaultDataDirectory(const std::string& dir) {
@@ -115,7 +120,9 @@ class QwEventBuffer: public MQwCodaControlEvent{
 
   Bool_t IsPhysicsEvent() {
     // fEvtType is an unsigned integer, hence always positive
-    return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
+    if(fDataVersion == 2)
+			return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
+		return (event_type <= MAX_PHYS_EVTYPE);
   };
 
   Int_t GetPhysicsEventNumber() {return fNumPhysicsEvents;};
@@ -124,24 +131,36 @@ class QwEventBuffer: public MQwCodaControlEvent{
   Bool_t GetNextEventRange();
   Bool_t GetNextRunRange();
   Bool_t GetNextRunNumber();
+	Int_t VerifyCodaVersion( const UInt_t header);
 
   Int_t GetNextEvent();
 
   Int_t  GetEvent();
   Int_t  WriteEvent(int* buffer);
 
+
+  // Virtual Functions inherited from CodaDecoder.h
+  Int_t DecodeEvent(const UInt_t* evbuffer);
+  Int_t physics_decode( const UInt_t* evbuffer );
+  Int_t interpretCoda3( const UInt_t* evbuffer );
+  Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
+  Int_t trigBankDecode( const UInt_t* evbuffer );
+  Int_t roc_decode( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );
+
+
   Bool_t IsOnline(){return fOnline;};
 
   Bool_t IsROCConfigurationEvent(){
-    return (fEvtType>=0x90 && fEvtType<=0xaf);
+    return (fEvtType>=0x90 && fEvtType<=0x18f);
   };
 
   Bool_t IsEPICSEvent(){
     //  What are the correct codes for our EPICS events?
     //return (fEvtType>=160 && fEvtType<=170);// epics event type is only with tag="160"
     // return (fEvtType>=160 && fEvtType<=190);// epics event type is only with tag="180" from July 2010 running
-    return (fEvtType==131);// epics event type is for 2019 summer PREX-II 
-  };
+    // return (fEvtType==131);// epics event type is for 2019 summer PREX-II 
+    return (fEvtType==EPICS_EVTYPE); // Defined in Decoder.h
+	}
 
   Bool_t FillSubsystemConfigurationData(QwSubsystemArray &subsystems);
   Bool_t FillSubsystemData(QwSubsystemArray &subsystems);

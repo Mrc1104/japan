@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 # Name of this project
-project(QwAnalysis VERSION 0.1 LANGUAGES CXX)
+project(QwAnalysis VERSION 0.2 LANGUAGES CXX)
 
 # Local path for cmake modules
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
@@ -44,6 +44,7 @@ endif()
 #
 file(GLOB my_project_sources
 		 Analysis/src/*.cc
+		 Analysis/src/hana_decode/*.cxx
 		 Parity/src/*.cc
 		 )
 list(REMOVE_ITEM my_project_sources
@@ -53,6 +54,7 @@ list(REMOVE_ITEM my_project_sources
 
 file(GLOB my_project_headers
 		 Analysis/include/*.h
+		 Analysis/include/hana_decode/*.h
 		 Parity/include/*.h
 		 )
 list(REMOVE_ITEM my_project_headers
@@ -93,6 +95,18 @@ config_add_dependency(ROOT ${minimum_root_version})
 
 
 #----------------------------------------------------------------------------
+# evio library
+#
+add_subdirectory(evio)
+include_directories(evio/include)
+find_package(ET)
+IF(ET_FOUND)
+  #  The QwEventBuffer class also needs to see the "__CODA_ET" define,
+  #  not just the EVIO library.
+  add_definitions(-D__CODA_ET)
+ENDIF(ET_FOUND)
+
+#----------------------------------------------------------------------------
 # gitinfo.cc
 #
 set(PRE_CONFIGURE_FILE ${PROJECT_SOURCE_DIR}/cmake/templates/gitinfo.cc.in)
@@ -108,20 +122,6 @@ set_compiler_flags("${ROOT_CXX_FLAGS}")
 #set_diagnostic_flags(WALL WEXTRA)
 set_diagnostic_flags(WALL)
 report_build_info()
-
-
-#----------------------------------------------------------------------------
-# evio library
-#
-add_subdirectory(evio)
-include_directories(evio/include)
-
-find_package(ET)
-IF(ET_FOUND)
-  #  The QwEventBuffer class also needs to see the "__CODA_ET" define,
-  #  not just the EVIO library.
-  add_definitions(-D__CODA_ET)
-ENDIF(ET_FOUND)
 
 #----------------------------------------------------------------------------
 # main dictionaries
@@ -151,12 +151,14 @@ endforeach()
 # main library
 #
 add_library(${PROJECT_NAME} SHARED ${my_project_sources} ${my_project_headers})
+message(STATUS "\n\nProject Name = ${PROJECT_NAME}\n\n")
 add_dependencies(${PROJECT_NAME} check_git_repository)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Analysis/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Analysis/include/hana_decode>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Parity/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   )
@@ -170,7 +172,7 @@ target_compile_options(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
-    evio
+    ev
   PUBLIC
     ROOT::Libraries
     ${MYSQLPP_LIBRARIES}

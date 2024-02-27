@@ -71,6 +71,7 @@ int main(int argc, char* argv[])
 
   // Event buffer
   QwEventBuffer eventbuffer;
+  eventbuffer.ProcessOptions(gQwOptions);
 
   // Detector array
   QwSubsystemArrayParity detectors(gQwOptions);
@@ -172,7 +173,7 @@ if(1==2){
       std::cout << "Error: could not open file!" << std::endl;
       return 0;
     }
-    eventbuffer.ResetControlParameters();
+		eventbuffer.ResetControlParameters();
     eventbuffer.EncodePrestartEvent(run, 0); // prestart: runnumber, runtype
     eventbuffer.EncodeGoEvent();
 
