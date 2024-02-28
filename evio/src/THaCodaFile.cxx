@@ -15,7 +15,7 @@
 #include "../include/THaCodaFile.h"
 #include "../include/Helper.h"
 #include "TSystem.h"
-#include "../include/evio.h"
+#include "evio.h"
 #include <iostream>
 #include <memory>
 #include <algorithm>
