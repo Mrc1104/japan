@@ -494,7 +494,9 @@ Int_t QwEventBuffer::GetEvent()
   if (status == CODA_OK){
     // Coda Data was loaded correctly
     UInt_t* evBuffer = (UInt_t*)fEvStream->getEvBuffer();
-  	Int_t fDataVersionVerify = VerifyCodaVersion(evBuffer[1]);
+		if(fDataVersionVerify == 0){
+  		VerifyCodaVersion(evBuffer[1]);
+		}
 		
 		if( (fDataVersion != fDataVersionVerify) && (fDataVersionVerify != 0 )){
     	QwError << "QwEventBuffer::GetEvent:  Coda Version is not recognized" << QwLog::endl;
@@ -516,20 +518,20 @@ Int_t QwEventBuffer::GetEvent()
 }
 
 // tries to figure out what Coda Version the Data is
-// returns: 2 -- Coda Version 2
+// fDataVersionVerify = 
+// 				  2 -- Coda Version 2
 // 					3 -- Coda Version 3
-// 					0 -- Unknown (Could be a EPICs Event or a ROCConfiguration)
-Int_t QwEventBuffer::VerifyCodaVersion( const UInt_t header)
+// 					0 -- Default (Unknown, Could be a EPICs Event or a ROCConfiguration)
+void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
 {
 	int top = (header & 0xff000000) >> 24;
 	int bot = (header & 0xff      );
-	Int_t ret = 0;
 	if( (top == 0xff) && (bot != 0xcc) ){
-		ret = 3; // Coda 3	
+		fDataVersionVerify = 3; // Coda 3	
 	} else if( (top != 0xff) && (bot == 0xcc) ){
-		ret = 2; // Coda 2
+		fDataVersionVerify = 2; // Coda 2
 	} 
-	return ret;
+	return;
 }
 
 // Modified from CodaDecoder.h

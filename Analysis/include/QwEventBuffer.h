@@ -131,7 +131,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
   Bool_t GetNextEventRange();
   Bool_t GetNextRunRange();
   Bool_t GetNextRunNumber();
-	Int_t VerifyCodaVersion( const UInt_t header);
+	void VerifyCodaVersion( const UInt_t header);
 
   Int_t GetNextEvent();
 
@@ -184,6 +184,10 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
 
   Bool_t FillSubsystemConfigurationData(std::vector<VQwSubsystem*> &subsystems);
   Bool_t FillSubsystemData(std::vector<VQwSubsystem*> &subsystems);
+	
+	// Coda Version that is set by void VerifyCodaVersion( ) 
+	// Compared against the user-input coda version
+	Int_t fDataVersionVerify = 0;
 
  protected:
   ///
