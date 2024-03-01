@@ -101,6 +101,7 @@ void QwEventRing::push(QwSubsystemArrayParity &event)
   if (bDEBUG) QwMessage << "QwEventRing::push:  BEGIN" <<QwLog::endl;
 
   
+
   if (bEVENT_READY){
     Int_t thisevent = fNextToBeFilled;
     Int_t prevevent = (thisevent+fRING_SIZE-1)%fRING_SIZE;

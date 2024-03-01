@@ -174,16 +174,15 @@ Int_t QwScaler_Channel<data_mask,data_shift>::ProcessEvBuffer(UInt_t* buffer, UI
     fValue_Raw = ((buffer[0] & data_mask) >> data_shift);
     fValue     = fCalibrationFactor * (Double_t(fValue_Raw) - Double_t(fValue_Raw_Old) - fPedestal);
     words_read = fNumberOfDataWords;
-							
 
     // Store old raw value for differential scalers
-    if (IsDifferentialScaler()){
-      fValue_Raw_Old = fValue_Raw;}
-    else{
-      fValue_Raw_Old = 0;}
+    if (IsDifferentialScaler())
+      fValue_Raw_Old = fValue_Raw;
+    else
+      fValue_Raw_Old = 0;
 
   } else {
-    // QwError << "QwScaler_Channel::ProcessEvBuffer: Not enough words!"<< QwLog::endl;
+    //QwError << "QwScaler_Channel::ProcessEvBuffer: Not enough words!"<< QwLog::endl;
   }
   return words_read;
 }
