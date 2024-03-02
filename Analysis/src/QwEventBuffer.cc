@@ -499,17 +499,17 @@ Int_t QwEventBuffer::GetEvent()
 		}
 		
 		if( (fDataVersion != fDataVersionVerify) && (fDataVersionVerify != 0 )){
-    	QwError << "QwEventBuffer::GetEvent:  Coda Version is not recognized" << QwLog::endl;
+    			QwError << "QwEventBuffer::GetEvent:  Coda Version is not recognized" << QwLog::endl;
 			QwError << "fDataVersion == " << fDataVersion 
-							  << ", but it looks like the data is from Coda Version "
-							  << fDataVersionVerify
-							  << "\nTry running with --coda-version " << fDataVersionVerify
-								<< "\nExiting ... " << QwLog::endl;
-    	globalEXIT = 1;
+		   	 	<< ", but it looks like the data is from Coda Version "
+				<< fDataVersionVerify
+				<< "\nTry running with --coda-version " << fDataVersionVerify
+				<< "\nExiting ... " << QwLog::endl;
+    			globalEXIT = 1;
 		} else if(fDataVersion == 2){
 	 		DecodeEventIDBank(evBuffer);
-		}	else { // fDataVersion == 3
-    	DecodeEvent(evBuffer);
+		} else { // fDataVersion == 3
+    		  DecodeEvent(evBuffer);
 		}
   } else {
     QwError << "QwEventBuffer::GetEvent:  CODA event is not recognized" << QwLog::endl;
@@ -519,9 +519,9 @@ Int_t QwEventBuffer::GetEvent()
 
 // tries to figure out what Coda Version the Data is
 // fDataVersionVerify = 
-// 				  2 -- Coda Version 2
-// 					3 -- Coda Version 3
-// 					0 -- Default (Unknown, Could be a EPICs Event or a ROCConfiguration)
+//  		      2 -- Coda Version 2
+//		      3 -- Coda Version 3
+// 	   	      0 -- Default (Unknown, Could be a EPICs Event or a ROCConfiguration)
 void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
 {
 	int top = (header & 0xff000000) >> 24;
@@ -567,7 +567,7 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
   // Determine event type
   interpretCoda3(evbuffer);  // this defines event_type
   
-	Int_t ret = HED_OK;
+  Int_t ret = HED_OK;
   if (event_type == PRESTART_EVTYPE ) {
     // Usually prestart is the first 'event'.  Call SetRunTime() to
     // re-initialize the crate map since we now know the run time.
@@ -875,9 +875,9 @@ Int_t QwEventBuffer::EncodePauseEvent()
   int localtime = (int) time(0);
   int eventcount = 0;
   buffer[0] = 4; // length
-	if(fDataVersion == 2)
+  if(fDataVersion == 2)
   	buffer[1] = ((kPAUSE_EVENT << 16) | (0x01 << 8) | 0xCC);
-	else
+  else
   	buffer[1] = ((0xffd3 << 16) | (0x01 << 8) );
   buffer[2] = localtime;
   buffer[3] = 0; // (unused)
@@ -891,9 +891,9 @@ Int_t QwEventBuffer::EncodeEndEvent()
   int localtime = (int) time(0);
   int eventcount = 0;
   buffer[0] = 4; // length
-	if(fDataVersion == 2)
+  if(fDataVersion == 2)
   	buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
-	else
+  else
   	buffer[1] = ((0xffd4 << 16) | (0x01 << 8) );
   buffer[2] = localtime;
   buffer[3] = 0; // (unused)
@@ -1026,9 +1026,9 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
   //  Loop through the data buffer in this event.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
 	if(fDataVersion == 2)
-	 		DecodeEventIDBank(localbuff);
+		DecodeEventIDBank(localbuff);
 	else
-  	DecodeEvent(localbuff);
+  		DecodeEvent(localbuff);
   while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
     //  If this bank has further subbanks, restart the loop.
     if (fSubbankType == 0x10) {
