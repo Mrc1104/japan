@@ -1073,9 +1073,9 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
   
 	if(fDataVersion == 2)
- 	  DecodeEventIDBank(localbuff);
+		DecodeEventIDBank(localbuff);
 	else
-  	  DecodeEvent(localbuff);
+  	DecodeEvent(localbuff);
 
   //  Clear the old event information from the subsystems.
   subsystems.ClearEventData();
@@ -1144,31 +1144,35 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
     Int_t nmarkers = CheckForMarkerWords(subsystems);
     if (nmarkers>0) {
       //  There are markerwords for this ROC/Bank
-      for (size_t i=0; i<nmarkers; i++){
-	offset = FindMarkerWord(i,&localbuff[fWordsSoFar],fFragLength);
-	BankID_t tmpbank = GetMarkerWord(i);
-	tmpbank = ((tmpbank)<<32) + fSubbankTag;
-	if (offset != -1){
-	  offset++; //  Skip the marker word
-	  subsystems.ProcessEvBuffer(fEvtType, fROC, tmpbank,
-				     &localbuff[fWordsSoFar+offset],
-				     fFragLength-offset);
-	} else {
-      QwDebug << "QwEventBuffer::FillSubsystemData:  "
-	      << "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
-	      << QwLog::endl;	
-      subsystems.ProcessEvBuffer(fEvtType, fROC, fSubbankTag,
-				 &localbuff[fWordsSoFar],
-				 fFragLength);
-        }
-    fWordsSoFar += fFragLength;
-//     QwDebug << "QwEventBuffer::FillSubsystemData:  "
-// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
-// 	    <<QwLog::endl;
-     }
-   }
-  }
-  return okay;
+						for (size_t i=0; i<nmarkers; i++){
+										offset = FindMarkerWord(i,&localbuff[fWordsSoFar],fFragLength);
+										BankID_t tmpbank = GetMarkerWord(i);
+										tmpbank = ((tmpbank)<<32) + fSubbankTag;
+										if (offset != -1){
+														offset++; //  Skip the marker word
+														subsystems.ProcessEvBuffer(fEvtType, fROC, tmpbank,
+																						&localbuff[fWordsSoFar+offset],
+																						fFragLength-offset);
+										}
+						}
+		} else {
+						QwDebug << "QwEventBuffer::FillSubsystemData:  "
+										<< "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
+										<< ", fWordsSoFar=="<< fWordsSoFar
+										<< ", fFragLength=="<< fFragLength
+										<< ", localbuff[fWordsSoFar] = " << localbuff[fWordsSoFar] 
+										<< QwLog::endl;	
+						subsystems.ProcessEvBuffer(fEvtType, fROC, fSubbankTag,
+														&localbuff[fWordsSoFar],
+														fFragLength);
+
+		}
+		fWordsSoFar += fFragLength;
+		//     QwDebug << "QwEventBuffer::FillSubsystemData:  "
+		// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
+		// 	    <<QwLog::endl;
+	}
+	return okay;
 }
 
 
@@ -1183,7 +1187,7 @@ Bool_t QwEventBuffer::FillEPICSData(QwEPICSEvent &epics)
 // 	  << Form("Status Summary: 0x%.8x; Words so far %d",
 // 		  fStatSum, fWordsSoFar)
 // 	  << QwLog::endl;
-
+	QwMessage << "HERE IS WHERE THE ERROR LIES" << QwLog::endl;
 
   ///
   Bool_t okay = kTRUE;
