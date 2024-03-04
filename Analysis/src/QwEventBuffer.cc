@@ -1144,35 +1144,31 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
     Int_t nmarkers = CheckForMarkerWords(subsystems);
     if (nmarkers>0) {
       //  There are markerwords for this ROC/Bank
-						for (size_t i=0; i<nmarkers; i++){
-										offset = FindMarkerWord(i,&localbuff[fWordsSoFar],fFragLength);
-										BankID_t tmpbank = GetMarkerWord(i);
-										tmpbank = ((tmpbank)<<32) + fSubbankTag;
-										if (offset != -1){
-														offset++; //  Skip the marker word
-														subsystems.ProcessEvBuffer(fEvtType, fROC, tmpbank,
-																						&localbuff[fWordsSoFar+offset],
-																						fFragLength-offset);
-										}
-						}
-		} else {
-						QwDebug << "QwEventBuffer::FillSubsystemData:  "
-										<< "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
-										<< ", fWordsSoFar=="<< fWordsSoFar
-										<< ", fFragLength=="<< fFragLength
-										<< ", localbuff[fWordsSoFar] = " << localbuff[fWordsSoFar] 
-										<< QwLog::endl;	
-						subsystems.ProcessEvBuffer(fEvtType, fROC, fSubbankTag,
-														&localbuff[fWordsSoFar],
-														fFragLength);
-
-		}
-		fWordsSoFar += fFragLength;
-		//     QwDebug << "QwEventBuffer::FillSubsystemData:  "
-		// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
-		// 	    <<QwLog::endl;
+      for (size_t i=0; i<nmarkers; i++){
+	offset = FindMarkerWord(i,&localbuff[fWordsSoFar],fFragLength);
+	BankID_t tmpbank = GetMarkerWord(i);
+	tmpbank = ((tmpbank)<<32) + fSubbankTag;
+	if (offset != -1){
+	  offset++; //  Skip the marker word
+	  subsystems.ProcessEvBuffer(fEvtType, fROC, tmpbank,
+				     &localbuff[fWordsSoFar+offset],
+				     fFragLength-offset);
 	}
-	return okay;
+      }
+    } else {
+      QwDebug << "QwEventBuffer::FillSubsystemData:  "
+	      << "fROC=="<<fROC << ", fSubbankTag==" << fSubbankTag
+	      << QwLog::endl;	
+      subsystems.ProcessEvBuffer(fEvtType, fROC, fSubbankTag,
+				 &localbuff[fWordsSoFar],
+				 fFragLength);
+    }
+    fWordsSoFar += fFragLength;
+//     QwDebug << "QwEventBuffer::FillSubsystemData:  "
+// 	    << "Ending loop: fWordsSoFar=="<<fWordsSoFar
+// 	    <<QwLog::endl;
+  }
+  return okay;
 }
 
 
