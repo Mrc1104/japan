@@ -526,6 +526,7 @@ void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
 {
 	int top = (header & 0xff000000) >> 24;
 	int bot = (header & 0xff      );
+	fDataVersionVerify = 0; // Default
 	if( (top == 0xff) && (bot != 0xcc) ){
 		fDataVersionVerify = 3; // Coda 3	
 	} else if( (top != 0xff) && (bot == 0xcc) ){
