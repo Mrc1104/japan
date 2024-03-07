@@ -145,7 +145,6 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
   Int_t interpretCoda3( const UInt_t* evbuffer );
   Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
   Int_t trigBankDecode( const UInt_t* evbuffer );
-  Int_t roc_decode( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );
 
 
   Bool_t IsOnline(){return fOnline;};

@@ -541,7 +541,6 @@ Int_t QwEventBuffer::physics_decode( const UInt_t* evbuffer )
 	// returns a list of the rocs found
 	// stores the # of rocs in nroc
 	// stores 
-  event_num = tbank.evtNum;
   fEvtNumber = tbank.evtNum;
   FindRocsCoda3(evbuffer);
  
@@ -555,9 +554,8 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
   // Main engine for decoding, called by public LoadEvent() methods
   assert(evbuffer);
 
-  buffer = evbuffer;
-  event_length = evbuffer[0]+1;  // in longwords (4 bytes)
-  fEvtLength = event_length;
+  //buffer = evbuffer;
+  fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
   event_type = 0;
   data_type = 0;
   trigger_bits = 0;
@@ -629,13 +627,10 @@ Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
 Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
 { // CODA3 version
 
-// Find the pointers and lengths of ROCs in CODA3
-// ROC = ReadOut Controller, synonymous with "crate".
 // Earlier we had decoded the Trigger Bank in method trigBankDecode.
 // This filled the tbank structure.
 // For CODA3, the ROCs start after the Trigger Bank.
 
-	// TODO:
 	// These two lines is essentially all we need to extract because 
 	// QwEvent::FillSubsytemData(...) has logic to handle the rocs and subbanks
 	// We also need the bank type which we can obtain here or later...
@@ -643,60 +638,6 @@ Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
 	fWordsSoFar = (pos); // this is the word right before 0x21001
                        // evbuffer[pos+1] prints out 0x21001
 	fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
-  // It is unclear to me how JAPAN handles mutli-roc setups...
-  nroc=0;
-
-  std::for_each(ALL(rocdat), []( RocDat_t& ROC ) { ROC.clear(); });
-
-  while (pos+1 < event_length) {
-    UInt_t len = evbuffer[pos];          /* total Length of ROC Bank data */
-    UInt_t iroc = (evbuffer[pos+1]&0x0fff0000)>>16;   /* ID of ROC is 12 bits*/
-    if( iroc >= MAXROC ) {
-      return HED_ERR;
-    }
-    rocdat[iroc].len = len;
-    rocdat[iroc].pos = pos;
-    irn[nroc] = iroc;
-    pos += len+1;
-    nroc++;
-  }
-
-  /* Sanity check:  Check if number of ROCs matches */
-  /* if(nroc != tbank.nrocs) {
-      printf(" ****ERROR: Trigger and Physics Block sizes do not match (%d != %d)\n",nroc,tbank.nrocs);
-// If you are reading a data file originally written with CODA 2 and then
-// processed (written out) with EVIO 4, it will segfault. Do as it says below.
-      printf("This might indicate a file written with EVIO 4 that was a CODA 2 file\n");
-      printf("Try  analyzer->SetCodaVersion(2)  in the analyzer script.\n");
-      return HED_ERR;
-  }*/
-
-  if (QwDebug) {  // debug
-
-    QwDebug << QwLog::endl << "  FindRocsCoda3 :: Starting Event number = " << std::dec << tbank.evtNum;
-    QwDebug << QwLog::endl;
-    QwDebug << "    Trigger Bank Len = "<<tbank.len<<" words "<<QwLog::endl;
-    QwDebug << "    There are "<<nroc<<"  ROCs"<<QwLog::endl;
-    for( UInt_t i = 0; i < nroc; i++ ) {
-      QwDebug << "     ROC ID = "<<irn[i]<<"  pos = "<<rocdat[irn[i]].pos
-          <<"  Len = "<<rocdat[irn[i]].len<<QwLog::endl;
-    }
-    QwDebug << "    Trigger BANK INFO,  TAG = "<<std::hex<<tbank.tag<<std::dec<<QwLog::endl;
-    QwDebug << "    start "<<std::hex<<tbank.start<<"      blksize "<<std::dec<<tbank.blksize
-        <<"  len "<<tbank.len<<"   tag "<<tbank.tag<<"   nrocs "<<tbank.nrocs<<"   evtNum "<<tbank.evtNum;
-    QwDebug << QwLog::endl;
-    QwDebug << "         Event #       Time Stamp       Event Type"<<QwLog::endl;
-    for( UInt_t i = 0; i < tbank.blksize; i++ ) {
-      if( tbank.evTS ) {
-          QwDebug << "      "<<std::dec<<tbank.evtNum+i<<"   "<<tbank.evTS[i]<<"   "<<tbank.evType[i];
-          QwDebug << QwLog::endl;
-       } else {
-          QwDebug << "     "<<tbank.evtNum+i<<"(No Time Stamp)   "<<tbank.evType[i];
-          QwDebug << QwLog::endl;
-       }
-       QwDebug << "\n" <<QwLog::endl;
-    }
-  }
 
   return 1;
 }
