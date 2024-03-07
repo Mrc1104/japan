@@ -122,7 +122,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
     // fEvtType is an unsigned integer, hence always positive
     if(fDataVersion == 2)
 			return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
-		return (event_type <= MAX_PHYS_EVTYPE);
+		return (fEvtType <= MAX_PHYS_EVTYPE);
   };
 
   Int_t GetPhysicsEventNumber() {return fNumPhysicsEvents;};

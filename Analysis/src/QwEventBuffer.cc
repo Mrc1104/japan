@@ -556,7 +556,8 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
 
   //buffer = evbuffer;
   fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
-  event_type = 0;
+  fEvtType = 0;
+	// TODO: Remove data_type (defined in THaEvData.h)
   data_type = 0;
   trigger_bits = 0;
   evt_time = 0;
@@ -564,10 +565,10 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
   blkidx = 0;
 
   // Determine event type
-  interpretCoda3(evbuffer);  // this defines event_type
+  interpretCoda3(evbuffer);  // this defines fEvtType 
   
   Int_t ret = HED_OK;
-  if (event_type == PRESTART_EVTYPE ) {
+  if (fEvtType == PRESTART_EVTYPE ) {
     // Usually prestart is the first 'event'.  Call SetRunTime() to
     // re-initialize the crate map since we now know the run time.
     // This won't happen for split files (no prestart). For such files,
@@ -577,17 +578,17 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
     run_type = evbuffer[4];
     QwDebug << "Prestart Event : run_num " << fCurrentRun
                 << "  run type "   << run_type
-                << "  event_type " << event_type
+                << "  fEvtType " << fEvtType
                 << "  run time "   << fRunTime
                 << QwLog::endl;
   }
 
-  else if( event_type == PRESCALE_EVTYPE || event_type == TS_PRESCALE_EVTYPE ) {
+  else if( fEvtType == PRESCALE_EVTYPE || fEvtType == TS_PRESCALE_EVTYPE ) {
   	ret = prescale_decode_coda3(evbuffer);
     if (ret != HED_OK ) return ret;
   }
 
-  else if( event_type <= MAX_PHYS_EVTYPE && !PrescanModeEnabled() ) {
+  else if( fEvtType <= MAX_PHYS_EVTYPE && !PrescanModeEnabled() ) {
     if( (ret = trigBankDecode(evbuffer)) != HED_OK ) {
       return ret;
     }
@@ -607,17 +608,16 @@ Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
   data_type  = (evbuffer[1] & 0xff00) >> 8;
   block_size = evbuffer[1] & 0xff;
 
-  event_type = InterpretBankTag(bank_tag);
-  fEvtType = event_type;
+  fEvtType = InterpretBankTag(bank_tag);
 
   if( bank_tag < 0xff00 ) { // User event type
-		if( (event_type != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
+		if( (fEvtType != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
     	if ( QwDebug )    // if set, character data gets printed.
-    			QwDebug << " User defined event type " << event_type << QwLog::endl;
+    			QwDebug << " User defined event type " << fEvtType << QwLog::endl;
       		debug_print(evbuffer);
 			}
   }
-    QwDebug << "CODA 3  Event type " << event_type << " trigger_bits "
+    QwDebug << "CODA 3  Event type " << fEvtType << " trigger_bits "
                 << trigger_bits << "  tsEvType  " << tsEvType
                 << "  evt_time " << GetEvTime() << QwLog::endl;
 
