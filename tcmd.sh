@@ -8,18 +8,20 @@ handle_error(){
 
 trap 'handle_error $LINENO' ERR
 
+argcnt=$#
 run1=4
 run2=4
-if [ $# -eq 1 ] 
+if [ ${argcnt} -eq 1 ] 
 	then 
 		run1=$1
 		run2=$1
-	else	
+fi
+if [ ${argcnt} -gt 1 ]
+	then
 		run1=$1
 		run2=$2
 fi
-echo ${run1}
-echo ${run2}
+
 echo 
 echo "########## 0/3 ##########"
 echo
