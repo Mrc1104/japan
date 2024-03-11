@@ -602,8 +602,6 @@ Int_t QwEventBuffer::DecodeEventIDBankCoda3(const UInt_t* evbuffer)
       ret = physics_decode(evbuffer);
     } 
     else{
-			QwMessage << "Control Event Here" << QwLog::endl;
-			QwMessage << "fWordsSoFar = " << fWordsSoFar << QwLog::endl;
       fEvtNumber = 0;
       fEvtClass  = 0;
       fStatSum   = 0;

@@ -25,8 +25,6 @@
 #include "QwCoda3Decoder.h"
 #include "Helper.h"
 
-using namespace Decoder;
-
 class QwOptions;
 class QwEPICSEvent;
 class VQwSubsystem;
@@ -257,7 +255,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public QwCoda3Decoder{
 
  protected:
   enum CodaStreamMode{fEvStreamNull, fEvStreamFile, fEvStreamET} fEvStreamMode;
-  THaCodaData *fEvStream; //  Pointer to a THaCodaFile or THaEtClient
+  Decoder::THaCodaData *fEvStream; //  Pointer to a THaCodaFile or THaEtClient
 
   Int_t fCurrentRun;
 
