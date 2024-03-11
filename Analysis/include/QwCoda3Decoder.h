@@ -9,7 +9,7 @@ public:
 	QwCoda3Decoder() { }
 protected:
 	// Virtual Parsing Functions that need to be overridden in QwEventBuffer	
- 	virtual Int_t DecodeEvent(const UInt_t* evbuffer)      = 0;
+ 	virtual Int_t DecodeEventIDBankCoda3(const UInt_t* evbuffer) = 0;
 	virtual Int_t physics_decode( const UInt_t* evbuffer ) = 0; 
   virtual Int_t interpretCoda3( const UInt_t* evbuffer ) = 0;
   virtual Int_t FindRocsCoda3(const UInt_t *evbuffer)    = 0; // CODA3 version
@@ -35,7 +35,7 @@ protected:
 public:
   // CodaDecoder.h Error Handling
   
-  // Return codes for DecodeEvent
+  // Return codes for DecodeEventIDBankCoda3
   enum { HED_OK = 0, HED_WARN = -63, HED_ERR = -127, HED_FATAL = -255 };
 
   // CODA file format exception, thrown by LoadEvent/LoadFromMultiBlock

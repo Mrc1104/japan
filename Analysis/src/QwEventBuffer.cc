@@ -1,5 +1,4 @@
 #include "QwEventBuffer.h"
-#include "CodaDecoder.h"
 
 #include "QwOptions.h"
 #include "QwEPICSEvent.h"
@@ -509,7 +508,7 @@ Int_t QwEventBuffer::GetEvent()
 		} else if(fDataVersion == 2){
 	 		DecodeEventIDBank(evBuffer);
 		} else { // fDataVersion == 3
-    		  DecodeEvent(evBuffer);
+    	DecodeEventIDBankCoda3(evBuffer);
 		}
   } else {
     QwError << "QwEventBuffer::GetEvent:  CODA event is not recognized" << QwLog::endl;
@@ -548,46 +547,69 @@ Int_t QwEventBuffer::physics_decode( const UInt_t* evbuffer )
 }
 
 
-Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
+Int_t QwEventBuffer::DecodeEventIDBankCoda3(const UInt_t* evbuffer)
 {
 
   // Main engine for decoding, called by public LoadEvent() methods
-  assert(evbuffer);
-
-  //buffer = evbuffer;
-  fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
-  fEvtType = 0;
-  blkidx = 0;
-  trigger_bits = 0;
-
-  // Determine event type
-  interpretCoda3(evbuffer);  // this defines fEvtType 
-  
+  fPhysicsEventFlag = kFALSE;
   Int_t ret = HED_OK;
-  if (fEvtType == PRESTART_EVTYPE ) {
-    // Usually prestart is the first 'event'. 
-    fCurrentRun  = evbuffer[3];
-    run_type = evbuffer[4];
-    QwDebug << "Prestart Event : run_num " << fCurrentRun
-                << "  run type "   << run_type
-                << "  fEvtType " << fEvtType
-                // << "  run time "   << fRunTime
-                << QwLog::endl;
-  }
 
-  else if( fEvtType == PRESCALE_EVTYPE /*|| fEvtType == TS_PRESCALE_EVTYPE */) {
-		// TODO: Make prescale_decode_coda3 a virtual function and override it in QwEventBuffer
-		// 			 Replace event_type -> fEvtType
-		// 			 How does JAPAN handle prescaling events?
-  	// ret = prescale_decode_coda3(evbuffer);
-    if (ret != HED_OK ) return ret;
-  }
-	// TODO: What is the PrescanMode?
-  else if( fEvtType <= MAX_PHYS_EVTYPE /*&& !PrescanModeEnabled() */) {
-    if( (ret = trigBankDecode(evbuffer)) != HED_OK ) {
-      return ret;
+  QwDebug << "QwEventBuffer::DecodeEventIDBank: " <<  std::hex
+	  << evbuffer[0] << " "
+	  << evbuffer[1] << " "
+	  << evbuffer[2] << " "
+	  << evbuffer[3] << " "
+	  << evbuffer[4] << std::dec << " "
+	  << QwLog::endl;
+  
+  if ( evbuffer[0] == 0 ){
+    /*****************************************************************
+     *  This buffer is empty.                                        *
+     *****************************************************************/
+    fEvtLength = (1);     //  Pretend that there is one word.
+    fWordsSoFar = (1);      //  Mark that we've read the word already.
+    fEvtType = (0);
+    fEvtTag       = 0;
+    fBankDataType = 0;
+    fIDBankNum    = 0;
+    fEvtNumber    = 0;
+    fEvtClass     = 0;
+    fStatSum      = 0;
+  } else {
+    /*****************************************************************
+     *  This buffer contains data; fill the event ID parameters.     *
+     *****************************************************************/
+    //  First word is the number of long-words in the buffer.
+    fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
+    fEvtType = 0;
+    blkidx = 0;
+    trigger_bits = 0;
+
+    // Determine event type
+    interpretCoda3(evbuffer);  // this defines fEvtType 
+ 	  // TODO: What is the PrescanMode?
+    if( fEvtType == PRESCALE_EVTYPE /*|| fEvtType == TS_PRESCALE_EVTYPE */) {
+		  // TODO: Make prescale_decode_coda3 a virtual function and override it in QwEventBuffer
+		  // 			 Replace event_type -> fEvtType
+		  // 			 How does JAPAN handle prescaling events?
+  	  // ret = prescale_decode_coda3(evbuffer);
+      if (ret != HED_OK ) return ret;
     }
-    ret = physics_decode(evbuffer);
+ 		else if( fEvtType <= MAX_PHYS_EVTYPE /*&& !PrescanModeEnabled() */) {
+      if( (ret = trigBankDecode(evbuffer)) != HED_OK ) {
+        return ret;
+      }
+      ret = physics_decode(evbuffer);
+    } 
+    else{
+			QwMessage << "Control Event Here" << QwLog::endl;
+			QwMessage << "fWordsSoFar = " << fWordsSoFar << QwLog::endl;
+      fEvtNumber = 0;
+      fEvtClass  = 0;
+      fStatSum   = 0;
+      fWordsSoFar = (2);
+			ProcessControlEvent(fEvtType, &evbuffer[fWordsSoFar]);
+		}
   }
 
   return ret;
@@ -965,7 +987,7 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
 	if(fDataVersion == 2)
 		DecodeEventIDBank(localbuff);
 	else
-  		DecodeEvent(localbuff);
+  		DecodeEventIDBankCoda3(localbuff);
   while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
     //  If this bank has further subbanks, restart the loop.
     if (fSubbankType == 0x10) {
@@ -1012,7 +1034,7 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
 	if(fDataVersion == 2)
 		DecodeEventIDBank(localbuff);
 	else
-  	DecodeEvent(localbuff);
+  	DecodeEventIDBankCoda3(localbuff);
 
   //  Clear the old event information from the subsystems.
   subsystems.ClearEventData();

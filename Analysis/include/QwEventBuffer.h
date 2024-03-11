@@ -23,7 +23,6 @@
 #include <unordered_map>
 
 #include "QwCoda3Decoder.h"
-#include "CodaDecoder.h"
 #include "Helper.h"
 
 using namespace Decoder;
@@ -141,10 +140,15 @@ class QwEventBuffer: public MQwCodaControlEvent, public QwCoda3Decoder{
 
 
   // Virtual Functions inherited from CodaDecoder.h
-  Int_t DecodeEvent(const UInt_t* evbuffer);
+  // TODO: Clean Up
+  Int_t DecodeEventIDBankCoda3(const UInt_t* evbuffer);
+  // TODO: Clean Up
   Int_t physics_decode( const UInt_t* evbuffer );
+  // TODO: Clean Up
   Int_t interpretCoda3( const UInt_t* evbuffer );
+  // TODO: Clean Up
   Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
+  // TODO: Clean Up
   Int_t trigBankDecode( const UInt_t* evbuffer );
 
 

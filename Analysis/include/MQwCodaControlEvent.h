@@ -17,7 +17,7 @@ class MQwCodaControlEvent
   ~MQwCodaControlEvent();
 
   void ResetControlParameters();
-  void ProcessControlEvent(UInt_t evtype, UInt_t* buffer);
+  void ProcessControlEvent(UInt_t evtype, const UInt_t* buffer);
   void ReportRunSummary();
 
   UInt_t GetStartTime() {return fStartTime;};
