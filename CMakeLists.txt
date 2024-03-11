@@ -44,7 +44,7 @@ endif()
 #
 file(GLOB my_project_sources
 		 Analysis/src/*.cc
-		 Analysis/src/hana_decode/*.cxx
+		 #Analysis/src/hana_decode/*.cxx
 		 Parity/src/*.cc
 		 )
 list(REMOVE_ITEM my_project_sources
@@ -54,7 +54,7 @@ list(REMOVE_ITEM my_project_sources
 
 file(GLOB my_project_headers
 		 Analysis/include/*.h
-		 Analysis/include/hana_decode/*.h
+		 # Analysis/include/hana_decode/*.h
 		 Parity/include/*.h
 		 )
 list(REMOVE_ITEM my_project_headers

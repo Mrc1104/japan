@@ -22,6 +22,7 @@
 
 #include <unordered_map>
 
+#include "QwCoda3Decoder.h"
 #include "CodaDecoder.h"
 #include "Helper.h"
 
@@ -37,7 +38,7 @@ class QwSubsystemArray;
 
 ///
 /// \ingroup QwAnalysis
-class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
+class QwEventBuffer: public MQwCodaControlEvent, public QwCoda3Decoder{
  public:
   static void DefineOptions(QwOptions &options);
   static void SetDefaultDataDirectory(const std::string& dir) {
@@ -187,6 +188,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
 	// Coda Version that is set by void VerifyCodaVersion( ) 
 	// Compared against the user-input coda version
 	Int_t fDataVersionVerify = 0;
+  Int_t fDataVersion; // User-input Coda Version	
 
  protected:
   ///

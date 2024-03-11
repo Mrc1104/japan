@@ -557,38 +557,33 @@ Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
   //buffer = evbuffer;
   fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
   fEvtType = 0;
-	// TODO: Remove data_type (defined in THaEvData.h)
-  data_type = 0;
-  trigger_bits = 0;
-  evt_time = 0;
-  bankdat.clear();
   blkidx = 0;
+  trigger_bits = 0;
 
   // Determine event type
   interpretCoda3(evbuffer);  // this defines fEvtType 
   
   Int_t ret = HED_OK;
   if (fEvtType == PRESTART_EVTYPE ) {
-    // Usually prestart is the first 'event'.  Call SetRunTime() to
-    // re-initialize the crate map since we now know the run time.
-    // This won't happen for split files (no prestart). For such files,
-    // the user should call SetRunTime() explicitly.
-    SetRunTime(evbuffer[2]);
+    // Usually prestart is the first 'event'. 
     fCurrentRun  = evbuffer[3];
     run_type = evbuffer[4];
     QwDebug << "Prestart Event : run_num " << fCurrentRun
                 << "  run type "   << run_type
                 << "  fEvtType " << fEvtType
-                << "  run time "   << fRunTime
+                // << "  run time "   << fRunTime
                 << QwLog::endl;
   }
 
-  else if( fEvtType == PRESCALE_EVTYPE || fEvtType == TS_PRESCALE_EVTYPE ) {
-  	ret = prescale_decode_coda3(evbuffer);
+  else if( fEvtType == PRESCALE_EVTYPE /*|| fEvtType == TS_PRESCALE_EVTYPE */) {
+		// TODO: Make prescale_decode_coda3 a virtual function and override it in QwEventBuffer
+		// 			 Replace event_type -> fEvtType
+		// 			 How does JAPAN handle prescaling events?
+  	// ret = prescale_decode_coda3(evbuffer);
     if (ret != HED_OK ) return ret;
   }
-
-  else if( fEvtType <= MAX_PHYS_EVTYPE && !PrescanModeEnabled() ) {
+	// TODO: What is the PrescanMode?
+  else if( fEvtType <= MAX_PHYS_EVTYPE /*&& !PrescanModeEnabled() */) {
     if( (ret = trigBankDecode(evbuffer)) != HED_OK ) {
       return ret;
     }
@@ -605,7 +600,7 @@ Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
   tsEvType = 0;
 
   bank_tag   = (evbuffer[1] & 0xffff0000) >> 16;
-  data_type  = (evbuffer[1] & 0xff00) >> 8;
+  fBankDataType = (evbuffer[1] & 0xff00) >> 8;
   block_size = evbuffer[1] & 0xff;
 
   fEvtType = InterpretBankTag(bank_tag);
@@ -613,12 +608,12 @@ Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
   if( bank_tag < 0xff00 ) { // User event type
 		if( (fEvtType != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
     	if ( QwDebug )    // if set, character data gets printed.
-    			QwDebug << " User defined event type " << fEvtType << QwLog::endl;
-      		debug_print(evbuffer);
+    			QwDebug << " User defined event type " << bank_tag << QwLog::endl;
+      		debug_print(bank_tag, evbuffer);
 			}
   }
     QwDebug << "CODA 3  Event type " << fEvtType << " trigger_bits "
-                << trigger_bits << "  tsEvType  " << tsEvType
+                << trigger_bits  << "  tsEvType  " << tsEvType
                 << "  evt_time " << GetEvTime() << QwLog::endl;
 
   return HED_OK;
@@ -651,7 +646,7 @@ Int_t QwEventBuffer::trigBankDecode( const UInt_t* evbuffer )
 
   // Decode trigger bank (bank of segments at start of physics event)
   if( block_size == 0 ) {
-    Error(here, "CODA 3 format error: Physics event with block size 0");
+		QwError << "CODA 3 format error: Physics event with block size 0" << QwLog::endl;
     return HED_ERR;
   }
   try {
