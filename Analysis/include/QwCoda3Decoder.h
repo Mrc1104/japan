@@ -6,10 +6,7 @@
 class QwCoda3Decoder
 {
 public:
-	QwCoda3Decoder()
-	{
-		QwMessage << "HELLO WORLD!" << QwLog::endl;
-	}
+	QwCoda3Decoder() { }
 protected:
 	// Virtual Parsing Functions that need to be overridden in QwEventBuffer	
  	virtual Int_t DecodeEvent(const UInt_t* evbuffer)      = 0;
@@ -38,7 +35,7 @@ protected:
 public:
   // CodaDecoder.h Error Handling
   
-  // Return codes for LoadEvent
+  // Return codes for DecodeEvent
   enum { HED_OK = 0, HED_WARN = -63, HED_ERR = -127, HED_FATAL = -255 };
 
   // CODA file format exception, thrown by LoadEvent/LoadFromMultiBlock
@@ -50,30 +47,8 @@ public:
       : std::runtime_error(what_arg) {}
   };
 
-  struct BankInfo {
-    BankInfo() : pos_{0}, len_{0}, tag_{0}, otag_{0}, dtyp_{0}, npad_{0},
-                 blksz_{0}, status_{kOK} {}
-    enum EBankErr  { kOK = 0, kBadArg, kBadLen, kBadPad, kUnsupType };
-    enum EDataSize { kUndef = 0, k8bit = 1, k16bit = 2, k32bit = 4, k64bit = 8 };
-    enum EIntFloat { kInteger = 0, kFloat };
-
-    Int_t Fill( const UInt_t* evbuf, UInt_t pos, UInt_t len );
-    EDataSize GetDataSize() const; // Size of data in bytes/element
-    EIntFloat GetFloat()    const;
-    // ESigned   GetSigned()   const;
-    const char* Errtxt()    const;
-    const char* Typtxt()    const;
-    UInt_t    pos_;      // First word of payload
-    UInt_t    len_;      // pos_ + len_ = first word after payload
-    UInt_t    tag_;      // Bank tag
-    UInt_t    otag_;     // Bank tag of "outer" bank if bank of banks
-    UInt_t    dtyp_;     // Data type
-    UInt_t    npad_;     // Number of padding bytes at end of data
-    UInt_t    blksz_;    // Block size (multiple events per buffer)
-    EBankErr  status_;   // Decoding status
-  };
-	
 public:
+// Class for TI Trigger Bank Data
   class TBOBJ {
   public:
      TBOBJ() : blksize(0), tag(0), nrocs(0), len(0), tsrocLen(0), evtNum(0),
