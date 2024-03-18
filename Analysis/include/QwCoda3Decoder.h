@@ -32,7 +32,6 @@ protected:
 	
   // CODA3 stuff
 	/* Originally CodaDecoder members */
-	void debug_print(const UInt_t event_type, const UInt_t* evbuffer ) const;
   UInt_t blkidx;  // Event block index (0 <= blkidx < block_size)
   Bool_t fMultiBlockMode, fBlockIsDone;
   UInt_t tsEvType, bank_tag, block_size;

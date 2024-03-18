@@ -113,9 +113,6 @@ uint32_t QwCoda3Decoder::TBOBJ::Fill( const uint32_t* evbuffer,
       throw coda_format_error("Past end of bank while scanning trigger bank segments");
     uint32_t slen = *p & 0xffff;
     uint32_t rocnum = (*p & 0xff000000) >> 24;
-		QwMessage << "mrc ... " << std::hex << *p 
-							<< "\nrocnum " << rocnum 
-							<< "\ntsroc " << tsroc << std::dec << QwLog::endl;
 		// tsroc is the crate # of the TS
 		// This is filled with the THaCrateMap class which we are not using
 		// can we just remove the if block below?
