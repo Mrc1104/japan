@@ -9,30 +9,39 @@ public:
 	QwCoda3Decoder() { }
 protected:
 	// Virtual Parsing Functions that need to be overridden in QwEventBuffer	
+	/* Originally CodaDecoder::LoadEvent() */
  	virtual Int_t DecodeEventIDBankCoda3(UInt_t* evbuffer) = 0;
+	/* Originally CodaDecoder::interpretCoda3 */
   virtual Int_t interpretCoda3( UInt_t* evbuffer ) = 0;
+	/* Originally CodaDecoder::trigBankDecode */
   virtual Int_t trigBankDecode( UInt_t* evbuffer ) = 0;
 
   // Parsing support functions	
+	/* Originally CodaDecoder::debug_print */
 	void debug_print(const UInt_t event_type, const UInt_t* evbuffer ) const;
+	/* Originally CodaDecoder::InterpretBankTag */
   virtual UInt_t InterpretBankTag( UInt_t tag )    = 0;
 
   // Optional functionality that may be implemented by derived classes
+	/* Originally THaEvData::GetEvTime */
   virtual ULong64_t GetEvTime() const { return evt_time; }
+	/* Originally THaEvData::SetEvTime */
   void    SetEvTime( ULong64_t evtime ) { evt_time = evtime; }
 protected:
 	UInt_t run_type;
 	
   // CODA3 stuff
+	/* Originally CodaDecoder members */
+	void debug_print(const UInt_t event_type, const UInt_t* evbuffer ) const;
   UInt_t blkidx;  // Event block index (0 <= blkidx < block_size)
   Bool_t fMultiBlockMode, fBlockIsDone;
   UInt_t tsEvType, bank_tag, block_size;
+	/* Originally THaEvData members */
   ULong64_t evt_time; // Event time (for CODA 3.* this is a 250 Mhz clock)
   UInt_t trigger_bits;
 
 public:
   // CodaDecoder.h Error Handling
-  
   // Return codes for DecodeEventIDBankCoda3
   enum { HED_OK = 0, HED_WARN = -63, HED_ERR = -127, HED_FATAL = -255 };
 
