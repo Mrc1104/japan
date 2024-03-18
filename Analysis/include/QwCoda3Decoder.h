@@ -9,11 +9,11 @@ public:
 	QwCoda3Decoder() { }
 protected:
 	// Virtual Parsing Functions that need to be overridden in QwEventBuffer	
- 	virtual Int_t DecodeEventIDBankCoda3(const UInt_t* evbuffer) = 0;
-	virtual Int_t physics_decode( const UInt_t* evbuffer ) = 0; 
-  virtual Int_t interpretCoda3( const UInt_t* evbuffer ) = 0;
-  virtual Int_t FindRocsCoda3(const UInt_t *evbuffer)    = 0; // CODA3 version
-  virtual Int_t trigBankDecode( const UInt_t* evbuffer ) = 0;
+ 	virtual Int_t DecodeEventIDBankCoda3(UInt_t* evbuffer) = 0;
+	virtual Int_t physics_decode( UInt_t* evbuffer ) = 0; 
+  virtual Int_t interpretCoda3( UInt_t* evbuffer ) = 0;
+  virtual Int_t FindRocsCoda3(UInt_t *evbuffer)    = 0; // CODA3 version
+  virtual Int_t trigBankDecode( UInt_t* evbuffer ) = 0;
 
   // Parsing support functions	
 	void debug_print(const UInt_t event_type, const UInt_t* evbuffer ) const;

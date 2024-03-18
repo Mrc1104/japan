@@ -535,7 +535,7 @@ void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
 }
 
 // Modified from CodaDecoder.h
-Int_t QwEventBuffer::physics_decode( const UInt_t* evbuffer )
+Int_t QwEventBuffer::physics_decode( UInt_t* evbuffer )
 {
 	// returns a list of the rocs found
 	// stores the # of rocs in nroc
@@ -547,7 +547,7 @@ Int_t QwEventBuffer::physics_decode( const UInt_t* evbuffer )
 }
 
 
-Int_t QwEventBuffer::DecodeEventIDBankCoda3(const UInt_t* evbuffer)
+Int_t QwEventBuffer::DecodeEventIDBankCoda3(UInt_t* evbuffer)
 {
 
   // Main engine for decoding, called by public LoadEvent() methods
@@ -613,7 +613,7 @@ Int_t QwEventBuffer::DecodeEventIDBankCoda3(const UInt_t* evbuffer)
   return ret;
 }
 
-Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
+Int_t  QwEventBuffer::interpretCoda3( UInt_t* evbuffer )
 {
   // Extract basic information from a CODA3 event
   tbank.Clear();
@@ -639,7 +639,7 @@ Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
   return HED_OK;
 }
 
-Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
+Int_t QwEventBuffer::FindRocsCoda3(UInt_t *evbuffer)
 { // CODA3 version
 
 // Earlier we had decoded the Trigger Bank in method trigBankDecode.
@@ -657,7 +657,7 @@ Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
   return 1;
 }
 
-Int_t QwEventBuffer::trigBankDecode( const UInt_t* evbuffer )
+Int_t QwEventBuffer::trigBankDecode( UInt_t* evbuffer )
 {
   // Decode the CODA3 trigger bank. Copy relevant data to member variables.
   // This will initialize the crate map.

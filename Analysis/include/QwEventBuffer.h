@@ -139,15 +139,15 @@ class QwEventBuffer: public MQwCodaControlEvent, public QwCoda3Decoder{
 
   // Virtual Functions inherited from CodaDecoder.h
   // TODO: Clean Up
-  Int_t DecodeEventIDBankCoda3(const UInt_t* evbuffer);
+  Int_t DecodeEventIDBankCoda3(UInt_t* evbuffer);
   // TODO: Clean Up
-  Int_t physics_decode( const UInt_t* evbuffer );
+  Int_t physics_decode( UInt_t* evbuffer );
   // TODO: Clean Up
-  Int_t interpretCoda3( const UInt_t* evbuffer );
+  Int_t interpretCoda3( UInt_t* evbuffer );
   // TODO: Clean Up
-  Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
+  Int_t FindRocsCoda3(UInt_t *evbuffer); // CODA3 version
   // TODO: Clean Up
-  Int_t trigBankDecode( const UInt_t* evbuffer );
+  Int_t trigBankDecode( UInt_t* evbuffer );
 
 
   Bool_t IsOnline(){return fOnline;};

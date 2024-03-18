@@ -28,7 +28,7 @@ void MQwCodaControlEvent::ResetControlParameters()
   fEndDatime.Set(UInt_t(0));
 }
 
-void MQwCodaControlEvent::ProcessControlEvent(UInt_t evtype, const UInt_t* buffer){
+void MQwCodaControlEvent::ProcessControlEvent(UInt_t evtype, UInt_t* buffer){
   UInt_t local_time;
   UInt_t local_evcount;
 
