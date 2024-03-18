@@ -53,6 +53,9 @@ public:
                runInfo(0), start(nullptr), evTS(nullptr), evType(nullptr),
                TSROC(nullptr) {}
      void     Clear() { memset(this, 0, sizeof(*this)); }
+		 // TODO:
+		 // tsroc is the crate # of the TI supervisor.... 
+		 // See hana_decode/THaCrateMap.h
      uint32_t Fill( const uint32_t* evbuffer, uint32_t blkSize, uint32_t tsroc );
      bool     withTimeStamp()   const { return (tag & 1) != 0; }
      bool     withRunInfo()     const { return (tag & 2) != 0; }

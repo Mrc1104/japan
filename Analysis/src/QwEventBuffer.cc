@@ -592,6 +592,7 @@ Int_t QwEventBuffer::DecodeEventIDBankCoda3(UInt_t* evbuffer)
       }
 	    // returns a list of the rocs found
 	    // stores the # of rocs in nroc
+  	  fPhysicsEventFlag = kTRUE;
       fEvtNumber = tbank.evtNum;
       UInt_t pos = 2 + tbank.len;
 	    fWordsSoFar = (pos); 
@@ -618,7 +619,6 @@ Int_t  QwEventBuffer::interpretCoda3( UInt_t* evbuffer )
   bank_tag   = (evbuffer[1] & 0xffff0000) >> 16;
   fBankDataType = (evbuffer[1] & 0xff00) >> 8;
   block_size = evbuffer[1] & 0xff;
-
   fEvtType = InterpretBankTag(bank_tag);
 
   if( bank_tag < 0xff00 ) { // User event type
@@ -648,7 +648,8 @@ Int_t QwEventBuffer::trigBankDecode( UInt_t* evbuffer )
     return HED_ERR;
   }
   try {
-    tbank.Fill(evbuffer + 2, block_size,0 );
+		uint32_t crate_num_TS = 0; 	
+    tbank.Fill(evbuffer + 2, block_size,crate_num_TS );
   }
   catch( const coda_format_error& e ) {
     Error(here, "CODA 3 format error: %s", e.what() );
@@ -981,8 +982,6 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
   ///      The configuration event for a ROC must have the same
   ///      subbank structure as the physics events for that ROC.
   Bool_t okay = kTRUE;
-  // TODO:
-  // What is this rocnum?
   UInt_t rocnum = fEvtType - 0x90;
   QwMessage << "QwEventBuffer::FillSubsystemConfigurationData:  "
 	    << "Found configuration event for ROC"
