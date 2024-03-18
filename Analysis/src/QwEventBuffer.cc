@@ -534,18 +534,6 @@ void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
 	return;
 }
 
-// Modified from CodaDecoder.h
-Int_t QwEventBuffer::physics_decode( UInt_t* evbuffer )
-{
-	// returns a list of the rocs found
-	// stores the # of rocs in nroc
-	// stores 
-  fEvtNumber = tbank.evtNum;
-  FindRocsCoda3(evbuffer);
- 
-  return HED_OK;
-}
-
 
 Int_t QwEventBuffer::DecodeEventIDBankCoda3(UInt_t* evbuffer)
 {
@@ -596,10 +584,18 @@ Int_t QwEventBuffer::DecodeEventIDBankCoda3(UInt_t* evbuffer)
       if (ret != HED_OK ) return ret;
     }
  		else if( fEvtType <= MAX_PHYS_EVTYPE /*&& !PrescanModeEnabled() */) {
+			// TODO:
+			// What is PrescaneModeEnabled? -- I do not think its implemented in QwCoda3Decoder.h
+			// if it is not needed, replace the "&& !PrescanModeEnabled()" with the below if-statement
       if( (ret = trigBankDecode(evbuffer)) != HED_OK ) {
         return ret;
       }
-      ret = physics_decode(evbuffer);
+	    // returns a list of the rocs found
+	    // stores the # of rocs in nroc
+      fEvtNumber = tbank.evtNum;
+      UInt_t pos = 2 + tbank.len;
+	    fWordsSoFar = (pos); 
+	    fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
     } 
     else{
       fEvtNumber = 0;
@@ -639,24 +635,6 @@ Int_t  QwEventBuffer::interpretCoda3( UInt_t* evbuffer )
   return HED_OK;
 }
 
-Int_t QwEventBuffer::FindRocsCoda3(UInt_t *evbuffer)
-{ // CODA3 version
-
-// Earlier we had decoded the Trigger Bank in method trigBankDecode.
-// This filled the tbank structure.
-// For CODA3, the ROCs start after the Trigger Bank.
-
-	// These two lines is essentially all we need to extract because 
-	// QwEvent::FillSubsytemData(...) has logic to handle the rocs and subbanks
-	// We also need the bank type which we can obtain here or later...
-  UInt_t pos = 2 + tbank.len;
-	fWordsSoFar = (pos); // this is the word right before 0x21001
-                       // evbuffer[pos+1] prints out 0x21001
-	fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
-
-  return 1;
-}
-
 Int_t QwEventBuffer::trigBankDecode( UInt_t* evbuffer )
 {
   // Decode the CODA3 trigger bank. Copy relevant data to member variables.
@@ -681,6 +659,41 @@ Int_t QwEventBuffer::trigBankDecode( UInt_t* evbuffer )
   LoadTrigBankInfo(0);  // Load data for first event in block
 
   return HED_OK;
+}
+
+//_____________________________________________________________________________
+UInt_t QwCoda3Decoder::InterpretBankTag( UInt_t tag )
+{
+  UInt_t evtyp{};
+  if( tag >= 0xff00 ) { // CODA Reserved bank type
+    switch( tag ) {
+      case 0xffd1:
+        evtyp = kPRESTART_EVENT;
+        break;
+      case 0xffd2:
+        evtyp = kGO_EVENT;
+        break;
+      case 0xffd4:
+        evtyp = kEND_EVENT;
+        break;
+      case 0xff50:
+      case 0xff58:      // Physics event with sync bit
+      case 0xFF78:
+      case 0xff70:
+        evtyp = 1;      // for CODA 3.* physics events are type 1.
+        break;
+      default:          // Undefined CODA 3 event type
+        QwWarning << "CodaDecoder:: WARNING:  Undefined CODA 3 event type, tag = "
+             << "0x" << std::hex << tag << std::dec << QwLog::endl;
+        evtyp = 0;
+        //FIXME evtyp = 0 could also be a user event type ...
+        // maybe throw an exception here?
+    }
+  } else {              // User event type
+    evtyp = tag;        // ET-insertions
+  }
+
+  return evtyp;
 }
 
 Int_t QwEventBuffer::GetFileEvent(){

@@ -14,32 +14,32 @@ void QwCoda3Decoder::debug_print( const UInt_t event_type, const UInt_t* evbuffe
     QwMessage << "EPICS data "<<QwLog::endl;
     print_it=1;
     break;
-	// Do we need thsi event?
+	// Do we need this event?
   case PRESCALE_EVTYPE:
     QwMessage << "Prescale data "<<QwLog::endl;
     print_it=1;
     break;
-	// Do we need thsi event?
+	// Do we need this event?
   case DAQCONFIG_FILE1:
     QwMessage << "DAQ config file 1 "<<QwLog::endl;
     print_it=1;
     break;
-	// Do we need thsi event?
+	// Do we need this event?
   case DAQCONFIG_FILE2:
     QwMessage << "DAQ config file 2 "<<QwLog::endl;
     print_it=1;
     break;
-	// Do we need thsi event?
+	// Do we need this event?
   case SCALER_EVTYPE:
     QwMessage << "LHRS scaler event "<<QwLog::endl;
     print_it=1;
     break;
-	// Do we need thsi event?
+	// Do we need this event?
   case SBSSCALER_EVTYPE:
     QwMessage << "SBS scaler event "<<QwLog::endl;
     print_it=1;
     break;
-	// Do we need thsi event?
+	// Do we need this event?
   case HV_DATA_EVTYPE:
     QwMessage << "High voltage data event "<<QwLog::endl;
     print_it=1;
@@ -57,41 +57,6 @@ void QwCoda3Decoder::debug_print( const UInt_t event_type, const UInt_t* evbuffe
   }
 }
 
-//_____________________________________________________________________________
-UInt_t QwCoda3Decoder::InterpretBankTag( UInt_t tag )
-{
-  UInt_t evtyp{};
-
-  if( tag >= 0xff00 ) { // CODA Reserved bank type
-    switch( tag ) {
-      case 0xffd1:
-        evtyp = PRESTART_EVTYPE;
-        break;
-      case 0xffd2:
-        evtyp = GO_EVTYPE;
-        break;
-      case 0xffd4:
-        evtyp = END_EVTYPE;
-        break;
-      case 0xff50:
-      case 0xff58:      // Physics event with sync bit
-      case 0xFF78:
-      case 0xff70:
-        evtyp = 1;      // for CODA 3.* physics events are type 1.
-        break;
-      default:          // Undefined CODA 3 event type
-        QwWarning << "CodaDecoder:: WARNING:  Undefined CODA 3 event type, tag = "
-             << "0x" << std::hex << tag << std::dec << QwLog::endl;
-        evtyp = 0;
-        //FIXME evtyp = 0 could also be a user event type ...
-        // maybe throw an exception here?
-    }
-  } else {              // User event type
-    evtyp = tag;        // ET-insertions
-  }
-
-  return evtyp;
-}
 
 
 //_____________________________________________________________________________
