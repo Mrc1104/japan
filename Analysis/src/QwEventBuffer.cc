@@ -662,7 +662,7 @@ Int_t QwEventBuffer::trigBankDecode( UInt_t* evbuffer )
 }
 
 //_____________________________________________________________________________
-UInt_t QwCoda3Decoder::InterpretBankTag( UInt_t tag )
+UInt_t QwEventBuffer::InterpretBankTag( UInt_t tag )
 {
   UInt_t evtyp{};
   if( tag >= 0xff00 ) { // CODA Reserved bank type
