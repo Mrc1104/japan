@@ -770,7 +770,7 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
 		header.push_back(0xFF501001);
 		header.push_back(0x0000000b); // word count for Trigger Bank
 		header.push_back(0xFF212001); // 0x001 = # of ROCs (is this an issue if we have multiple rocs?)
-		header.push_back(0x010a0004); 
+		header.push_back(0x010a0004); // EB ID, 0xa, Len
 		// evtnum is held by a 64 bit ... for now we set the upper 32 bits to 0
 		header.push_back(++fEvtNumber );
 		header.push_back(0x0);
@@ -779,11 +779,11 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
 		// evttime is held by a 64 bit (bits 0-48 is the time) ... for now we set the upper 32 bits to 0
 		header.push_back(localtime);
 		header.push_back(0x0);
-		header.push_back(0x1850001);
-		header.push_back(0xc0da);
-		header.push_back(0x2010002);
-		header.push_back(0xc0da01);	
-		header.push_back(0xc0da02);	
+		header.push_back(0x1850001); // EB ID, padding (bits), 0x5, Len
+		header.push_back(0xc0da);    // Event (Trigger) Type 
+		header.push_back(0x2010002); // ROC #, 0x01, Len
+		header.push_back(0xc0da01);	 // Time stamp
+		header.push_back(0xc0da02);	 // Misc. 
 
 	}
 
