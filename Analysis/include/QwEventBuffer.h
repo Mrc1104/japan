@@ -25,8 +25,6 @@
 #include "CodaDecoder.h"
 #include "Helper.h"
 
-using namespace Decoder;
-
 class QwOptions;
 class QwEPICSEvent;
 class VQwSubsystem;
@@ -37,7 +35,7 @@ class QwSubsystemArray;
 
 ///
 /// \ingroup QwAnalysis
-class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
+class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
  public:
   static void DefineOptions(QwOptions &options);
   static void SetDefaultDataDirectory(const std::string& dir) {
@@ -122,7 +120,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
     // fEvtType is an unsigned integer, hence always positive
     if(fDataVersion == 2)
 			return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
-		return (event_type <= MAX_PHYS_EVTYPE);
+		return (fEvtType <= MAX_PHYS_EVTYPE);
   };
 
   Int_t GetPhysicsEventNumber() {return fNumPhysicsEvents;};
@@ -140,13 +138,9 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
 
 
   // Virtual Functions inherited from CodaDecoder.h
-  Int_t DecodeEvent(const UInt_t* evbuffer);
-  Int_t physics_decode( const UInt_t* evbuffer );
-  Int_t interpretCoda3( const UInt_t* evbuffer );
-  Int_t FindRocsCoda3(const UInt_t *evbuffer); // CODA3 version
-  Int_t trigBankDecode( const UInt_t* evbuffer );
-  Int_t roc_decode( UInt_t roc, const UInt_t* evbuffer, UInt_t ipt, UInt_t istop );
-
+  virtual Int_t LoadEvent(UInt_t* evbuffer);
+  virtual Int_t interpretCoda3( UInt_t* evbuffer );
+  virtual Int_t trigBankDecode( UInt_t* evbuffer );
 
   Bool_t IsOnline(){return fOnline;};
 
@@ -155,11 +149,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
   };
 
   Bool_t IsEPICSEvent(){
-    //  What are the correct codes for our EPICS events?
-    //return (fEvtType>=160 && fEvtType<=170);// epics event type is only with tag="160"
-    // return (fEvtType>=160 && fEvtType<=190);// epics event type is only with tag="180" from July 2010 running
-    // return (fEvtType==131);// epics event type is for 2019 summer PREX-II 
-    return (fEvtType==EPICS_EVTYPE); // Defined in Decoder.h
+    return (fEvtType==EPICS_EVTYPE); // Defined in CodaDecoder.h
 	}
 
   Bool_t FillSubsystemConfigurationData(QwSubsystemArray &subsystems);
@@ -188,6 +178,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
 	// Coda Version that is set by void VerifyCodaVersion( ) 
 	// Compared against the user-input coda version
 	Int_t fDataVersionVerify = 0;
+  Int_t fDataVersion; // User-input Coda Version	
 
  protected:
   ///
@@ -252,7 +243,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder{
 
  protected:
   enum CodaStreamMode{fEvStreamNull, fEvStreamFile, fEvStreamET} fEvStreamMode;
-  THaCodaData *fEvStream; //  Pointer to a THaCodaFile or THaEtClient
+  Decoder::THaCodaData *fEvStream; //  Pointer to a THaCodaFile or THaEtClient
 
   Int_t fCurrentRun;
 

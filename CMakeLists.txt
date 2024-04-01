@@ -44,7 +44,7 @@ endif()
 #
 file(GLOB my_project_sources
 		 Analysis/src/*.cc
-		 Analysis/src/hana_decode/*.cxx
+		 Analysis/src/CodaDecoder.cxx
 		 Parity/src/*.cc
 		 )
 list(REMOVE_ITEM my_project_sources
@@ -54,7 +54,6 @@ list(REMOVE_ITEM my_project_sources
 
 file(GLOB my_project_headers
 		 Analysis/include/*.h
-		 Analysis/include/hana_decode/*.h
 		 Parity/include/*.h
 		 )
 list(REMOVE_ITEM my_project_headers
@@ -158,7 +157,7 @@ target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Analysis/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Analysis/include/hana_decode>
+    #$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Analysis/include/hana_decode>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Parity/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   )
