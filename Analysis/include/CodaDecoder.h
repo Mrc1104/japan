@@ -6,7 +6,11 @@
 class CodaDecoder
 {
 public:
-	CodaDecoder() { }
+	CodaDecoder() 
+  : tsEvType{0}
+  , block_size{0}
+  , evt_time{0}
+	{ }
  	virtual ~CodaDecoder() { }
 protected:
 	// Hall A analyzer function (analyzer/CodaDecoder.[h,cxx])
