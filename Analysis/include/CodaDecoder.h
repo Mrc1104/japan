@@ -39,22 +39,12 @@ protected:
 	void SetEvTime(ULong64_t evtime) { evt_time = evtime; }
 
 protected:	
+	// CodaDecoder
+	// tsEvType -- the TS# trigger
+	UInt_t tsEvType, block_size;
 	// THaEvData
-	// TODO: Do we need this?
-	UInt_t run_type;
-	// CodaDecoder
-	// TODO: Do we need this?	
-	UInt_t blkidx; // Event block index (0 <= blkidx < block_size)
-	// CodaDecoder
-	// TODO: Do we need this?	
-	Bool_t fMultiBlockMode, fBlockIsDone;
-	// CodaDecoder
-	// TODO: Do we need this?	
-	UInt_t tsEvType, bank_tag, block_size;
-	// THaEvData
-	// TODO: Do we need evt_time?
   ULong64_t evt_time; // Event time (for CODA 3.* this is a 250 Mhz clock)
-  UInt_t trigger_bits; // TS# of the trigger (see the TI trigger map)
+  UInt_t trigger_bits; //  (Not completely sure) The TS# trigger for the TS
 
 public:
 	// Hall A analyzer error handling (analyzer/CodaDecoder.[h,cxx])

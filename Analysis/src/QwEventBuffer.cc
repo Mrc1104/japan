@@ -545,12 +545,12 @@ Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)
 
   fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
   fEvtType = 0;
+	fEvtTag = 0;
   fBankDataType = 0;
-  trigger_bits = 0;
-  // TODO: do we need evt_time?
+	// Trigger Bank vars
   evt_time = 0;
+	trigger_bits = 0;
 	block_size = 0;
-  blkidx = 0;
 
   // Determine event type
   interpretCoda3(evbuffer);
@@ -559,7 +559,7 @@ Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)
   	  fPhysicsEventFlag = kTRUE;
 			// Originally from HallA::CodaDecoder::physics_decode which called
 			// and HallA::CodaDecoder::FindRocsCoda3
-			// Both of which had extra CrateMap logic (unneded for JAPAN)
+			// Both of which had extra CrateMap logic (not needed for JAPAN)
 			// Below are the 4 lines needed from those two functions
       fEvtNumber = tbank.evtNum;
       UInt_t pos = 2 + tbank.len;
@@ -569,13 +569,17 @@ Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)
 			// What to do with fEvtClass and fStatSum ?
 		return ret;
   }
-	else if(ret == HED_OK){ // Not a PHYS event, if ret = HED_OK, pass it to
-    fEvtNumber = 0;
-  	fWordsSoFar = (2);
-		// TODO:
-		// What to do with fEvtClass and fStatSum ?
-		ProcessControlEvent(fEvtType, &evbuffer[fWordsSoFar]);
-	}
+	
+	// TrigBankDecode failed, return error code
+	if( ret != HED_OK) return ret;
+
+	//  Run this event through the Control event processing.
+	//  If it is not a control event, nothing will happen.
+  fEvtNumber = 0;
+  fWordsSoFar = (2);
+	// TODO:
+	// What to do with fEvtClass and fStatSum ?
+	ProcessControlEvent(fEvtType, &evbuffer[fWordsSoFar]);
   return ret;
 }
 
@@ -585,19 +589,18 @@ Int_t  QwEventBuffer::interpretCoda3( UInt_t* evbuffer )
   tbank.Clear();
   tsEvType = 0;
 	
-	//TODO:
-	// Replace bank_tag ?
-  bank_tag   = (evbuffer[1] & 0xffff0000) >> 16;
+  fEvtTag   = (evbuffer[1] & 0xffff0000) >> 16;
   fBankDataType  = (evbuffer[1] & 0xff00) >> 8;
   block_size = evbuffer[1] & 0xff;
+	if(block_size > 1) { QwWarning << "MultiBlock is not properly supported! block_size = " 
+											 				   << block_size << QwLog::endl; }
+  fEvtType = InterpretBankTag(fEvtTag);
 
-  fEvtType = InterpretBankTag(bank_tag);
-
-  if( bank_tag < 0xff00 ) { // User event type
+  if( fEvtTag < 0xff00 ) { // User event type
 		if( (fEvtType != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
     	if ( QwDebug )    // if set, character data gets printed.
     			QwDebug << " User defined event type " << fEvtType << QwLog::endl;
-      		debug_print(bank_tag, evbuffer);
+      		debug_print(fEvtTag, evbuffer);
 			}
   }
     QwDebug << "CODA 3  Event type " << fEvtType << " trigger_bits "
@@ -719,9 +722,9 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
 		header.push_back(localtime);
 		header.push_back(0x0);
 		header.push_back(0x1850001);
-		header.push_back(0xc0da);
+		header.push_back(0xc0da); // TS# Trigger
 		header.push_back(0x2010002);
-		header.push_back(0xc0da01);	
+		header.push_back(0xc0da01);  	
 		header.push_back(0xc0da02);	
 
 	}
@@ -921,8 +924,6 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
   ///      The configuration event for a ROC must have the same
   ///      subbank structure as the physics events for that ROC.
   Bool_t okay = kTRUE;
-  // TODO:
-  // What is this rocnum?
   UInt_t rocnum = fEvtType - 0x90;
   QwMessage << "QwEventBuffer::FillSubsystemConfigurationData:  "
 	    << "Found configuration event for ROC"
