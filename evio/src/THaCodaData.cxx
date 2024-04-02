@@ -22,7 +22,6 @@
 
 using namespace std;
 
-namespace Decoder {
 
 //_____________________________________________________________________________
 THaCodaData::THaCodaData()
@@ -300,6 +299,5 @@ void EvtBuffer::reset()
   fDidGrow = false;
 }
 
-}  // namespace Decoder
 
-ClassImp(Decoder::THaCodaData)
+ClassImp(THaCodaData)

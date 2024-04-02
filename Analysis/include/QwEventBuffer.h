@@ -243,7 +243,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
 
  protected:
   enum CodaStreamMode{fEvStreamNull, fEvStreamFile, fEvStreamET} fEvStreamMode;
-  Decoder::THaCodaData *fEvStream; //  Pointer to a THaCodaFile or THaEtClient
+  THaCodaData *fEvStream; //  Pointer to a THaCodaFile or THaEtClient
 
   Int_t fCurrentRun;
 

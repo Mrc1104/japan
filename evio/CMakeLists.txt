@@ -28,7 +28,6 @@ set(src
   )
 set(headers
     include/CustomAlloc.h
-    include/Decoder.h
     include/Helper.h
     include/THaCodaData.h
     include/THaCodaFile.h
