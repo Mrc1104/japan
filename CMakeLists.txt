@@ -38,6 +38,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     endif()
 endif()
 
+#----------------------------------------------------------------------------
+# Configuration options
+option(ONLINE_ET "Enable support ET message system" OFF)
 
 #----------------------------------------------------------------------------
 # Sources and headers
@@ -98,12 +101,6 @@ config_add_dependency(ROOT ${minimum_root_version})
 #
 add_subdirectory(evio)
 include_directories(evio/include)
-find_package(ET)
-IF(ET_FOUND)
-  #  The QwEventBuffer class also needs to see the "__CODA_ET" define,
-  #  not just the EVIO library.
-  add_definitions(-D__CODA_ET)
-ENDIF(ET_FOUND)
 
 #----------------------------------------------------------------------------
 # gitinfo.cc

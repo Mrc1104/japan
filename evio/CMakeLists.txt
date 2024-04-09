@@ -16,9 +16,7 @@ if(NOT EVIO_FOUND)
   endif()
 endif()
 
-if(ONLINE_ET)
-  find_package(ET)
-endif()
+
 
 #----------------------------------------------------------------------------
 # Sources and headers
@@ -32,6 +30,22 @@ set(headers
     include/THaCodaData.h
     include/THaCodaFile.h
 )
+
+#----------------------------------------------------------------------------
+# ET
+#
+if(ONLINE_ET)
+  find_package(ET)
+  if(ET_FOUND)
+    set(ONLIBS EVIO::ET)
+    list(APPEND src src/THaEtClient.cxx)
+		list(APPEND headers include/THaEtClient.h)
+  else()
+    message(WARNING
+      "Cannot find ET system. Check $CODA environment variable. Disabling ONLINE_ET")
+    set(ONLINE_ET FALSE CACHE BOOL "ET system not found, disabled" FORCE)
+  endif()
+endif()
 
 #----------------------------------------------------------------------------
 # libevio
@@ -54,7 +68,7 @@ target_include_directories(${LIBNAME}
 target_link_libraries(${LIBNAME}
   PUBLIC
     ROOT::Core
-    #${ONLIBS}    # et.h is in the THaEtClient.h public interface
+    ${ONLIBS}    # et.h is in the THaEtClient.h public interface
   PRIVATE
     EVIO::EVIO
   )
