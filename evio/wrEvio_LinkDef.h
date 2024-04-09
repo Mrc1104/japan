@@ -6,5 +6,6 @@
 
 #pragma link C++ class THaCodaData+;
 #pragma link C++ class THaCodaFile+;
+#pragma link C++ class THaEtClient+;
 
 #endif
