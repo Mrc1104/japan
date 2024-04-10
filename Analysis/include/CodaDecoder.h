@@ -122,9 +122,6 @@ public:
   static const UInt_t SCALER_EVTYPE    = 140;
   static const UInt_t SBSSCALER_EVTYPE = 141;
   static const UInt_t HV_DATA_EVTYPE   = 150;
-// TODO:
-// Look into ClassDef. Do I need one for inherited classes?	
-  ClassDef(CodaDecoder,0) // Decoder for CODA event buffer
 };
 
 #endif
