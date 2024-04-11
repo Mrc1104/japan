@@ -555,6 +555,8 @@ Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)
   // Determine event type
   interpretCoda3(evbuffer);
 	
+
+	// What to do with bad events?	
   if( fEvtType <= MAX_PHYS_EVTYPE && ( (ret = trigBankDecode(evbuffer)) == HED_OK ) ) {
   	  fPhysicsEventFlag = kTRUE;
 			// Originally from HallA::CodaDecoder::physics_decode which called
@@ -565,18 +567,29 @@ Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)
       UInt_t pos = 2 + tbank.len;
 	    fWordsSoFar = (pos); 
 	    fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
+  		//  Initialize the fragment size to the event size, in case the 
+  		//  event is not subbanked.
+  		fFragLength = fEvtLength-fWordsSoFar;
 			// TODO:
 			// What to do with fEvtClass and fStatSum ?
 		return ret;
   }
 	
 	// TrigBankDecode failed, return error code
-	if( ret != HED_OK) return ret;
+	if( ret != HED_OK)
+	{
+		QwWarning << "trigBankDecode returned with status = " << ret << QwLog::endl;
+		return ret;
+	}
 
 	//  Run this event through the Control event processing.
 	//  If it is not a control event, nothing will happen.
+	fBankDataType = (evbuffer[1] & 0xff00) >> 8; // not sure if this works
   fEvtNumber = 0;
   fWordsSoFar = (2);
+  //  Initialize the fragment size to the event size, in case the 
+ 	//  event is not subbanked.
+ 	fFragLength = fEvtLength-fWordsSoFar;
 	// TODO:
 	// What to do with fEvtClass and fStatSum ?
 	ProcessControlEvent(fEvtType, &evbuffer[fWordsSoFar]);
@@ -590,7 +603,6 @@ Int_t  QwEventBuffer::interpretCoda3( UInt_t* evbuffer )
   tsEvType = 0;
 	
   fEvtTag   = (evbuffer[1] & 0xffff0000) >> 16;
-  fBankDataType  = (evbuffer[1] & 0xff00) >> 8;
   block_size = evbuffer[1] & 0xff;
 	if(block_size > 1) { QwWarning << "MultiBlock is not properly supported! block_size = " 
 											 				   << block_size << QwLog::endl; }
