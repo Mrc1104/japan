@@ -710,6 +710,9 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
   subsystems.EncodeEventData(buffer);
   // Add CODA event header
  	std::vector<UInt_t> header;
+	
+	// TODO:
+	// || Abstract this logic to a "EncodeHeaderFunction" ||
 	if(fDataVersion == 2){
   	header.push_back((0x0001 << 16) | (0x10 << 8) | 0xCC);
 			// event type | event data type | event ID (0xCC for CODA event)
@@ -721,6 +724,7 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
   	header.push_back(1);	// event class
   	header.push_back(0);	// status summary
 	} else{ // fDataVersion == 3 
+		// Could we make this more dynamic by reversing the TBOBJ::Fill mechanism?
 		header.push_back(0xFF501001);
 		header.push_back(0x0000000b); // word count for Trigger Bank
 		header.push_back(0xFF212001); // 0x001 = # of ROCs (is this an issue if we have multiple rocs?)
@@ -740,7 +744,7 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
 		header.push_back(0xc0da02);	
 
 	}
-
+	// ^^Abstract this logic to a "EncodeHeaderFunction" ^^
 
   // Copy the encoded event buffer into an array of integers,
   // as expected by the CODA routines.
@@ -767,6 +771,8 @@ Int_t QwEventBuffer::EncodePrestartEvent(int runnumber, int runtype)
 {
   int buffer[5];
   int localtime = (int) time(0);
+	// TODO:
+	// Replace with eventdecoder->EncoderPrestartEvent
   buffer[0] = 4; // length
 	if(fDataVersion == 2)
   	buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
@@ -775,6 +781,7 @@ Int_t QwEventBuffer::EncodePrestartEvent(int runnumber, int runtype)
   buffer[2] = localtime;
   buffer[3] = runnumber;
   buffer[4] = runtype;
+
   ProcessPrestart(localtime, runnumber, runtype);
   return WriteEvent(buffer);
 }
@@ -783,6 +790,8 @@ Int_t QwEventBuffer::EncodeGoEvent()
   int buffer[5];
   int localtime = (int) time(0);
   int eventcount = 0;
+	// TODO:
+	// Replace with eventdecoder->EncoderPrestartEvent
   buffer[0] = 4; // length
 	if(fDataVersion == 2)
   	buffer[1] = ((kGO_EVENT << 16) | (0x01 << 8) | 0xCC);
@@ -791,6 +800,7 @@ Int_t QwEventBuffer::EncodeGoEvent()
   buffer[2] = localtime;
   buffer[3] = 0; // (unused)
   buffer[4] = eventcount;
+
   ProcessGo(localtime, eventcount);
   return WriteEvent(buffer);
 }
@@ -799,6 +809,8 @@ Int_t QwEventBuffer::EncodePauseEvent()
   int buffer[5];
   int localtime = (int) time(0);
   int eventcount = 0;
+	// TODO:
+	// Replace with eventdecoder->EncoderPrestartEvent
   buffer[0] = 4; // length
   if(fDataVersion == 2)
   	buffer[1] = ((kPAUSE_EVENT << 16) | (0x01 << 8) | 0xCC);
@@ -815,6 +827,8 @@ Int_t QwEventBuffer::EncodeEndEvent()
   int buffer[5];
   int localtime = (int) time(0);
   int eventcount = 0;
+	// TODO:
+	// Replace with eventdecoder->EncoderPrestartEvent
   buffer[0] = 4; // length
   if(fDataVersion == 2)
   	buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
