@@ -126,14 +126,11 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
   Int_t CloseETStream();
 
   Bool_t IsPhysicsEvent() {
-    // fEvtType is an unsigned integer, hence always positive
-    if(fDataVersion == 2)
-			return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
-		return (fEvtType <= MAX_PHYS_EVTYPE);
+		return ( decoder->IsPhysicsEvent() );
   };
 
   Int_t GetPhysicsEventNumber() {return fNumPhysicsEvents;};
-  Int_t GetEventNumber() { return fEvtNumber; };
+  Int_t GetEventNumber() { return decoder->fEvtNumber; };
 
   Bool_t GetNextEventRange();
   Bool_t GetNextRunRange();
@@ -154,11 +151,11 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
   Bool_t IsOnline(){return fOnline;};
 
   Bool_t IsROCConfigurationEvent(){
-    return (fEvtType>=0x90 && fEvtType<=0x18f);
+    return ( decoder->IsROCConfigurationEvent() );
   };
 
   Bool_t IsEPICSEvent(){
-    return (fEvtType==EPICS_EVTYPE); // Defined in CodaDecoder.h
+    return ( decoder->IsEPICSEvent() ); // Defined in CodaDecoder.h
 	}
 
   Bool_t FillSubsystemConfigurationData(QwSubsystemArray &subsystems);
@@ -198,7 +195,6 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
   Int_t   fETWaitMode;
   Bool_t  fExitOnEnd;
 
-  Bool_t fAllowLowSubbankIDs;
 
   Bool_t fChainDataFiles;
   std::pair<Int_t, Int_t> fRunRange;
@@ -266,26 +262,12 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
  protected:
   Bool_t fPhysicsEventFlag;
 
-  UInt_t fEvtLength;
-  UInt_t fWordsSoFar;
 
-  UInt_t fEvtType;
-
-  UInt_t fEvtTag;
-  UInt_t fBankDataType;
   UInt_t fIDBankNum;
 
-  UInt_t fEvtNumber;   ///< CODA event number; only defined for physics events
-  UInt_t fEvtClass;
-  UInt_t fStatSum;
 
   Double_t fCleanParameter[3]; ///< Scan data/clean data from the green monster
 
-  UInt_t fFragLength;
-  BankID_t fSubbankTag;
-  UInt_t fSubbankType;
-  UInt_t fSubbankNum;
-  ROCID_t fROC;
 
   TStopwatch fRunTimer;      ///<  Timer used for runlet processing loop
   TStopwatch fStopwatch;     ///<  Timer used for internal timing
@@ -323,33 +305,33 @@ template < class T > Bool_t QwEventBuffer::FillObjectWithEventData(T &object){
   Bool_t okay = kFALSE;
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
 
-  if (fFragLength==1 && localbuff[fWordsSoFar]==kNullDataWord){
-    fWordsSoFar += fFragLength;
-  } else if (object.CanUseThisEventType(fEvtType)){
+  if (decoder->fFragLength==1 && localbuff[decoder->fWordsSoFar]==kNullDataWord){
+    decoder->fWordsSoFar += decoder->fFragLength;
+  } else if (object.CanUseThisEventType(decoder->fEvtType)){
     //  Clear the old event information from the object
-    object.ClearEventData(fEvtType);
+    object.ClearEventData(decoder->fEvtType);
     //  Loop through the data buffer in this event.
-    if (fBankDataType == 0x10){
+    if (decoder->fBankDataType == 0x10){
       //  This bank is subbanked; loop through subbanks
-      while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
+      while ((okay = DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
 	//  If this bank has further subbanks, restart the loop.
-	if (fSubbankType == 0x10) continue;
+	if (decoder->fSubbankType == 0x10) continue;
 	//  If this bank only contains the word 'NULL' then skip
 	//  this bank.
-	if (fFragLength==1 && localbuff[fWordsSoFar]==kNullDataWord){
-	  fWordsSoFar += fFragLength;
+	if (decoder->fFragLength==1 && localbuff[decoder->fWordsSoFar]==kNullDataWord){
+	  decoder->fWordsSoFar += decoder->fFragLength;
 	  continue;
 	}
-	object.ProcessBuffer(fEvtType, fROC, fSubbankTag, fSubbankType,
-			     &localbuff[fWordsSoFar],
-			     fFragLength);
-	fWordsSoFar += fFragLength;
+	object.ProcessBuffer(decoder->fEvtType, decoder->fROC, decoder->fSubbankTag, decoder->fSubbankType,
+			     &localbuff[decoder->fWordsSoFar],
+			     decoder->fFragLength);
+	decoder->fWordsSoFar += decoder->fFragLength;
       }
     } else {
       //  This is a single bank of some type
-      object.ProcessBuffer(fEvtType, 0, fBankDataType,
-			   &localbuff[fWordsSoFar],
-			   fEvtLength);
+      object.ProcessBuffer(decoder->fEvtType, 0, decoder->fBankDataType,
+			   &localbuff[decoder->fWordsSoFar],
+			   decoder->fEvtLength);
     }
   }
   return okay;

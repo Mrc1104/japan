@@ -13,28 +13,59 @@
 
 #include <vector>
 
-#include "RTypes.h"
 
-class VEventDecoder{
+#include "Rtypes.h"
+#include "QwTypes.h"
+#include "MQwCodaControlEvent.h"
+
+
+/* TODO:
+ * Inheriting from MQwCodaControlEvent here solves our
+ * problem of scope for the keywords and ProcessControl() calls;
+ * however, this muddies the class because we no longer are just (en)decoding
+ * the event header but also are now processing control events too.
+ * Should we redesign?
+ * 	-> Make a seperate KEYWORD header?
+ * 	-> Make a "fControlEvent" flag then handle control events inside QwEventBuffer?
+ */
+class VEventDecoder : public MQwCodaControlEvent {
 public:
-	VEventDecoder()  { };
-	~VEventDecoder() { };
+	VEventDecoder() : fEvtNumber(0) { }
+	virtual ~VEventDecoder() { };
 
 public:
-	// Encoding Functions
+// Encoding Functions
 	virtual std::vector<UInt_t> EncodePHYSEventHeader()                = 0;
 	virtual void EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype = 0) = 0;
-  virtual void EncodeGoEventHeader(int* buffer, buffer_size)         = 0;
+  virtual void EncodeGoEventHeader(int* buffer, int buffer_size)         = 0;
   virtual void EncodePauseEventHeader(int* buffer, int buffer_size)  = 0;
   virtual void EncodeEndEventHeader(int* buffer, int buffer_size)    = 0;
 
 public:
-	// Decoding Functions
-  virtual void DecodeEventIDBank(UInt_t *buffer) = 0;
-  Bool_t DecodeSubbankHeader(UInt_t *buffer) = 0;
+// Decoding Functions
+  virtual Int_t DecodeEventIDBank(UInt_t *buffer) = 0;
+  virtual Bool_t DecodeSubbankHeader(UInt_t *buffer);
 
-protected:
+public:
+// Boolean Functions
+  virtual Bool_t IsPhysicsEvent() = 0;
+  virtual Bool_t IsROCConfigurationEvent(){
+    return (fEvtType>=0x90 && fEvtType<=0x18f);
+  };
+
+  virtual Bool_t IsEPICSEvent(){
+    return (fEvtType==EPICS_EVTYPE); // Defined in CodaDecoder.h
+	}
+
+
+// TODO:
+// Make these data members protected!
+public:
 	// Information we need to extact from the decoding
+	// How to expose this info to QwEventBuffer..?
+	// Maybe make a seperate data class and give the pointer to the decoder? 
+	// Data_t* pdata
+	// Or should we just use getter's and setters?
 	UInt_t fWordsSoFar;
 	UInt_t fEvtLength;	
 	UInt_t fEvtType;
@@ -50,17 +81,11 @@ protected:
   UInt_t fSubbankNum;
   ROCID_t fROC;
 	// Information needed for proper decoding
-	fAllowLowSubbankIDs
-
+	Bool_t fAllowLowSubbankIDs;
 protected:
- 	// MQwCodaControlEvent Keywords (duplicate from MQwCodaControlEvent... might want to move to its own header file and #include it)
-	enum EventTypes{
-    kSYNC_EVENT        =  16,
-    kPRESTART_EVENT    =  17,
-    kGO_EVENT          =  18,
-    kPAUSE_EVENT       =  19,
-    kEND_EVENT         =  20
-  };
+	enum KEYWORDS {
+		EPICS_EVTYPE = 131
+	};
 
 };
 
