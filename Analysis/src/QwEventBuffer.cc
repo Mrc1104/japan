@@ -57,7 +57,8 @@ QwEventBuffer::QwEventBuffer()
        fRunIsSegmented(kFALSE),
        fPhysicsEventFlag(kFALSE),
        fEvtNumber(0),
-       fNumPhysicsEvents(0)
+       fNumPhysicsEvents(0),
+			 decoder(NULL)
 {
   //  Set up the signal handler.
   globalEXIT=0;
@@ -203,6 +204,11 @@ void QwEventBuffer::ProcessOptions(QwOptions &options)
 		QwError << "Invalid Coda Version. Only versions 2 and 3 are supported. "
 						<< "Please set using --coda-version 2(3)" << QwLog::endl;
     exit(EXIT_FAILURE);
+	}
+	if(fDataVersion == 2){
+		decoder = new Coda2EventDecoder();
+	} else {
+		decoder = new Coda3EventDecoder();
 	}
 
   fAllowLowSubbankIDs = options.GetValue<bool>("allow-low-subbank-ids");

@@ -23,7 +23,9 @@
 #include <unordered_map>
 
 #include "CodaDecoder.h"
-#include "Helper.h"
+#include "VEventDecoder.h"
+#include "Coda3EventDecoder.h"
+#include "Coda2EventDecoder.h"
 
 class QwOptions;
 class QwEPICSEvent;
@@ -70,6 +72,13 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
       delete fRunListFile;
       fRunListFile = NULL;
     }
+	  // TODO: 
+	  // is this the proper deletion of out decoder class?
+	  // Delete Decoder
+	  if(decoder != NULL) {
+			delete decoder;
+			decoder = NULL;
+	  }
   };
 
   /// \brief Sets internal flags based on the QwOptions
@@ -295,7 +304,8 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
  protected:
   UInt_t     fNumPhysicsEvents;
   UInt_t     fStartingPhysicsEvent;
-
+ protected:
+	VEventDecoder* decoder;
 };
 
 template < class T > Bool_t QwEventBuffer::FillObjectWithEventData(T &object){
