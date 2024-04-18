@@ -55,7 +55,6 @@ QwEventBuffer::QwEventBuffer()
        fEvStream(NULL),
        fCurrentRun(-1),
        fRunIsSegmented(kFALSE),
-       fPhysicsEventFlag(kFALSE),
        fNumPhysicsEvents(0),
 			 decoder(NULL)
 {
@@ -199,15 +198,15 @@ void QwEventBuffer::ProcessOptions(QwOptions &options)
   fDataFileStem = options.GetValue<string>("codafile-stem");
   fDataFileExtension = options.GetValue<string>("codafile-ext");
 	fDataVersion = options.GetValue<int>("coda-version");
-  if(fDataVersion != 2 && fDataVersion != 3){
+	
+	if(fDataVersion == 2){
+		decoder = new Coda2EventDecoder();
+	} else if(fDataVersion == 3) {
+		decoder = new Coda3EventDecoder();
+	} else{
 		QwError << "Invalid Coda Version. Only versions 2 and 3 are supported. "
 						<< "Please set using --coda-version 2(3)" << QwLog::endl;
     exit(EXIT_FAILURE);
-	}
-	if(fDataVersion == 2){
-		decoder = new Coda2EventDecoder();
-	} else {
-		decoder = new Coda3EventDecoder();
 	}
 
   decoder->fAllowLowSubbankIDs = options.GetValue<bool>("allow-low-subbank-ids");
@@ -541,123 +540,6 @@ void QwEventBuffer::VerifyCodaVersion( const UInt_t *buffer )
 	} 
 }
 
-Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)
-{
-
-  fPhysicsEventFlag = kFALSE;
-  Int_t ret = HED_OK;
-
-  // Main engine for decoding, called by public LoadEvent() methods
-  assert(evbuffer);
-
-  decoder->fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
-  decoder->fEvtType = 0;
-	decoder->fEvtTag = 0;
-  decoder->fBankDataType = 0;
-	// Trigger Bank vars
-  evt_time = 0;
-	trigger_bits = 0;
-	block_size = 0;
-
-  // Determine event type
-  interpretCoda3(evbuffer);
-	
-
-	// What to do with bad events?	
-  if( decoder->fEvtType <= MAX_PHYS_EVTYPE && ( (ret = trigBankDecode(evbuffer)) == HED_OK ) ) {
-  	  fPhysicsEventFlag = kTRUE;
-			// Originally from HallA::CodaDecoder::physics_decode which called
-			// and HallA::CodaDecoder::FindRocsCoda3
-			// Both of which had extra CrateMap logic (not needed for JAPAN)
-			// Below are the 4 lines needed from those two functions
-      decoder->fEvtNumber = tbank.evtNum;
-      UInt_t pos = 2 + tbank.len;
-	    decoder->fWordsSoFar = (pos); 
-	    decoder->fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
-  		//  Initialize the fragment size to the event size, in case the 
-  		//  event is not subbanked.
-  		decoder->fFragLength = decoder->fEvtLength-decoder->fWordsSoFar;
-			// TODO:
-			// What to do with fEvtClass and fStatSum ?
-		return ret;
-  }
-	
-	// TrigBankDecode failed, return error code
-	if( ret != HED_OK)
-	{
-		QwWarning << "trigBankDecode returned with status = " << ret << QwLog::endl;
-		return ret;
-	}
-
-	//  Run this event through the Control event processing.
-	//  If it is not a control event, nothing will happen.
-	decoder->fBankDataType = (evbuffer[1] & 0xff00) >> 8; // not sure if this works
-  decoder->fEvtNumber = 0;
-  decoder->fWordsSoFar = (2);
-  //  Initialize the fragment size to the event size, in case the 
- 	//  event is not subbanked.
- 	decoder->fFragLength = decoder->fEvtLength-decoder->fWordsSoFar;
-	// TODO:
-	// What to do with fEvtClass and fStatSum ?
-	ProcessControlEvent(decoder->fEvtType, &evbuffer[decoder->fWordsSoFar]);
-  return ret;
-}
-
-Int_t  QwEventBuffer::interpretCoda3( UInt_t* evbuffer )
-{
-  // Extract basic information from a CODA3 event
-  tbank.Clear();
-  tsEvType = 0;
-	
-  decoder->fEvtTag   = (evbuffer[1] & 0xffff0000) >> 16;
-  block_size = evbuffer[1] & 0xff;
-	if(block_size > 1) { QwWarning << "MultiBlock is not properly supported! block_size = " 
-											 				   << block_size << QwLog::endl; }
-  decoder->fEvtType = InterpretBankTag(decoder->fEvtTag);
-
-  if( decoder->fEvtTag < 0xff00 ) { // User event type
-		if( (decoder->fEvtType != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
-    	if ( QwDebug )    // if set, character data gets printed.
-    			QwDebug << " User defined event type " << decoder->fEvtType << QwLog::endl;
-      		debug_print(decoder->fEvtTag, evbuffer);
-			}
-  }
-    QwDebug << "CODA 3  Event type " << decoder->fEvtType << " trigger_bits "
-                << trigger_bits << "  tsEvType  " << tsEvType
-                << "  evt_time " << GetEvTime() << QwLog::endl;
-
-  return HED_OK;
-}
-
-Int_t QwEventBuffer::trigBankDecode( UInt_t* evbuffer )
-{
-  // Decode the CODA3 trigger bank. Copy relevant data to member variables.
-  // This will initialize the crate map.
-
-  const char* const here = "CodaDecoder::trigBankDecode";
-
-  // Decode trigger bank (bank of segments at start of physics event)
-  if( block_size == 0 ) {
-    Error(here, "CODA 3 format error: Physics event with block size 0");
-    return HED_ERR;
-  }
-  try {
-		// TODO:
-		// How does JAPAN want to handle Trigger Supervisors?
-		uint32_t crate_num_TS = 0; 	
-    tbank.Fill(evbuffer + 2, block_size, crate_num_TS );
-  }
-  catch( const coda_format_error& e ) {
-    Error(here, "CODA 3 format error: %s", e.what() );
-    return HED_ERR;
-  }
-
-  // Copy pertinent data to member variables for faster retrieval
-  LoadTrigBankInfo(0);  // Load data for first event in block
-
-  return HED_OK;
-}
-
 Int_t QwEventBuffer::GetFileEvent(){
   Int_t status = CODA_OK;
   //  Try to get a new event.  If the EOF occurs,
@@ -852,102 +734,6 @@ Int_t QwEventBuffer::EncodeEndEvent()
 void QwEventBuffer::ResetFlags(){
 }
 
-
-void QwEventBuffer::DecodeEventIDBank(UInt_t *buffer)
-{
-  UInt_t local_datatype;
-  UInt_t local_eventtype;
-
-  fPhysicsEventFlag = kFALSE;
-
-  QwDebug << "QwEventBuffer::DecodeEventIDBank: " <<  std::hex
-	  << buffer[0] << " "
-	  << buffer[1] << " "
-	  << buffer[2] << " "
-	  << buffer[3] << " "
-	  << buffer[4] << std::dec << " "
-	  << QwLog::endl;
-  
-  if ( buffer[0] == 0 ){
-    /*****************************************************************
-     *  This buffer is empty.                                        *
-     *****************************************************************/
-    decoder->fEvtLength = (1);     //  Pretend that there is one word.
-    decoder->fWordsSoFar = (1);      //  Mark that we've read the word already.
-    decoder->fEvtType = (0);
-    decoder->fEvtTag       = 0;
-    decoder->fBankDataType = 0;
-    fIDBankNum    = 0;
-    decoder->fEvtNumber    = 0;
-    decoder->fEvtClass     = 0;
-    decoder->fStatSum      = 0;
-  } else {
-    /*****************************************************************
-     *  This buffer contains data; fill the event ID parameters.     *
-     *****************************************************************/
-    //  First word is the number of long-words in the buffer.
-    decoder->fEvtLength = (buffer[0]+1);
-
-    // Second word contains the event type, for CODA events.
-    decoder->fEvtTag   = (buffer[1] & 0xFFFF0000) >> 16;  // (bits(31-16));
-    local_datatype = (buffer[1] & 0xFF00) >> 8;  // (bits(15-8));
-    fIDBankNum = (buffer[1] & 0xFF);             // (bits(7-0));
-    if ( fIDBankNum == 0xCC) {
-      //  This is a CODA event bank; the event type is equal to
-      //  the event tag.
-      local_eventtype = decoder->fEvtTag;
-      decoder->fEvtType = (local_eventtype);
-      decoder->fBankDataType = local_datatype;
-
-      // local_eventtype is unsigned int and always positive
-      if (/* local_eventtype >= 0 && */ local_eventtype <= 15) {
-        //  This is a physics event; record the event number, event
-        //  classification, and status summary.
-        decoder->fEvtNumber = buffer[4];
-        decoder->fEvtClass  = buffer[5];
-        decoder->fStatSum   = buffer[6];
-				fPhysicsEventFlag = kTRUE;
-        //  Now skip to the first ROC data bank.
-        decoder->fWordsSoFar = (7);
-      } else {
-        //  This is not a physics event, but is still in the CODA
-        //  event format.  The first two words have been examined.
-        decoder->fEvtNumber = 0;
-        decoder->fEvtClass  = 0;
-        decoder->fStatSum   = 0;
-        decoder->fWordsSoFar = (2);
-				//  Run this event through the Control event processing.
-				//  If it is not a control event, nothing will happen.
-				ProcessControlEvent(decoder->fEvtType, &buffer[decoder->fWordsSoFar]);
-      }
-    } else {
-      //  This is not an event in the CODA event bank format,
-      //  but it still follows the CEBAF common event format.
-      //  Arbitrarily set the event type to "fEvtTag".
-      //  The first two words have been examined.
-      decoder->fEvtType = (decoder->fEvtTag);
-      decoder->fBankDataType = local_datatype;
-      decoder->fEvtNumber = 0;
-      decoder->fEvtClass  = 0;
-      decoder->fStatSum   = 0;
-      decoder->fWordsSoFar = (2);
-    }
-  }
-  //  Initialize the fragment size to the event size, in case the 
-  //  event is not subbanked.
-  decoder->fFragLength = decoder->fEvtLength-decoder->fWordsSoFar;
-  QwDebug << Form("buffer[0-1] 0x%x 0x%x ; ",
-   		  buffer[0], buffer[1])
-	  << Form("Length: %d; Tag: 0x%x; Bank data type: 0x%x; Bank ID num: 0x%x; ",
-   		  decoder->fEvtLength, decoder->fEvtTag, decoder->fBankDataType, fIDBankNum)
-   	  << Form("Evt type: 0x%x; Evt number %d; Evt Class 0x%.8x; ",
-   		  decoder->fEvtType, decoder->fEvtNumber, decoder->fEvtClass)
-   	  << Form("Status Summary: 0x%.8x; Words so far %d",
-   		  decoder->fStatSum, decoder->fWordsSoFar)
-	  << QwLog::endl;
-}
-
-
 Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystems)
 {
   ///  Passes the data for the configuration events into each subsystem
@@ -966,7 +752,7 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
   //  Loop through the data buffer in this event.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
 	decoder->DecodeEventIDBank(localbuff);
-  while ((okay = DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
+  while ((okay = decoder->DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
     //  If this bank has further subbanks, restart the loop.
     if (decoder->fSubbankType == 0x10) {
       QwMessage << "This bank has further subbanks, restart the loop" << QwLog::endl;
@@ -1030,7 +816,7 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
   UInt_t offset;
 
   //  Loop through the data buffer in this event.
-  while ((okay = DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
+  while ((okay = decoder->DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
 
     //  If this bank has further subbanks, restart the loop.
     if (decoder->fSubbankType == 0x10) continue;
@@ -1128,7 +914,7 @@ Bool_t QwEventBuffer::FillEPICSData(QwEPICSEvent &epics)
   //  Loop through the data buffer in this event.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
   if (decoder->fBankDataType==0x10){
-    while ((okay = DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
+    while ((okay = decoder->DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
       //  If this bank has further subbanks, restart the loop.
       if (decoder->fSubbankType == 0x10) continue;
       //  If this bank only contains the word 'NULL' then skip
@@ -1178,66 +964,6 @@ Bool_t QwEventBuffer::FillEPICSData(QwEPICSEvent &epics)
 	    << QwLog::endl;
   return okay;
 }
-
-
-Bool_t QwEventBuffer::DecodeSubbankHeader(UInt_t *buffer){
-  //  This function will decode the header information from
-  //  either a ROC bank or a subbank.  It will also bump
-  //  fWordsSoFar to be referring to the first word of
-  //  the subbank's data.
-  //
-  //  NOTE TO DAQ PROGRAMMERS:
-  //      All internal subbank tags MUST be defined to
-  //      be greater than 31.
-  Bool_t okay = kTRUE;
-  if (decoder->fWordsSoFar >= decoder->fEvtLength){
-    //  We have reached the end of this event.
-    okay = kFALSE;
-  } else if (decoder->fBankDataType == 0x10) {
-    //  This bank has subbanks, so decode the subbank header.
-    decoder->fFragLength   = buffer[0] - 1;  // This is the number of words in the data block
-    decoder->fSubbankTag   = (buffer[1]&0xFFFF0000)>>16; // Bits 16-31
-    decoder->fSubbankType  = (buffer[1]&0xFF00)>>8;      // Bits 8-15
-    decoder->fSubbankNum   = (buffer[1]&0xFF);           // Bits 0-7
-
-    QwDebug << "QwEventBuffer::DecodeSubbankHeader: "
-	    << "fROC=="<<decoder->fROC << ", fSubbankTag==" << decoder->fSubbankTag
-	    << ", fSubbankType=="<<decoder->fSubbankType << ", fSubbankNum==" <<decoder->fSubbankNum
-	    << ", fAllowLowSubbankIDs==" << decoder->fAllowLowSubbankIDs
-	    << QwLog::endl;
-
-    if (decoder->fSubbankTag<=31 
-	&& ( (decoder->fAllowLowSubbankIDs==kFALSE)
-	     || (decoder->fAllowLowSubbankIDs==kTRUE && decoder->fSubbankType==0x10) ) ){
-      //  Subbank tags between 0 and 31 indicate this is
-      //  a ROC bank.
-      decoder->fROC        = decoder->fSubbankTag;
-      decoder->fSubbankTag = 0;
-    }
-    if (decoder->fWordsSoFar+2+decoder->fFragLength > decoder->fEvtLength){
-      //  Trouble, because we'll have too many words!
-      QwError << "fWordsSoFar+2+fFragLength=="<<decoder->fWordsSoFar+2+decoder->fFragLength
-		<< " and fEvtLength==" << decoder->fEvtLength
-		<< QwLog::endl;
-      okay = kFALSE;
-    }
-    decoder->fWordsSoFar   += 2;
-  }
-  QwDebug << "QwEventBuffer::DecodeSubbankHeader: " 
-	  << "fROC=="<<decoder->fROC << ", fSubbankTag==" << decoder->fSubbankTag <<": "
-	  <<  std::hex
-	  << buffer[0] << " "
-	  << buffer[1] << " "
-	  << buffer[2] << " "
-	  << buffer[3] << " "
-	  << buffer[4] << std::dec << " "
-	  << decoder->fWordsSoFar << " "<< decoder->fEvtLength
-	  << QwLog::endl;
-  //  There is no final else, because any bank type other than 
-  //  0x10 should just return okay.
-  return okay;
-}
-
 
 const TString&  QwEventBuffer::DataFile(const UInt_t run, const Short_t seg = -1)
 {

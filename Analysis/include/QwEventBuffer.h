@@ -22,7 +22,6 @@
 
 #include <unordered_map>
 
-#include "CodaDecoder.h"
 #include "VEventDecoder.h"
 #include "Coda3EventDecoder.h"
 #include "Coda2EventDecoder.h"
@@ -37,7 +36,7 @@ class QwSubsystemArray;
 
 ///
 /// \ingroup QwAnalysis
-class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
+class QwEventBuffer: public MQwCodaControlEvent {
  public:
   static void DefineOptions(QwOptions &options);
   static void SetDefaultDataDirectory(const std::string& dir) {
@@ -142,12 +141,6 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
   Int_t  GetEvent();
   Int_t  WriteEvent(int* buffer);
 
-
-  // Virtual Functions inherited from CodaDecoder.h
-  virtual Int_t LoadEvent(UInt_t* evbuffer);
-  virtual Int_t interpretCoda3( UInt_t* evbuffer );
-  virtual Int_t trigBankDecode( UInt_t* evbuffer );
-
   Bool_t IsOnline(){return fOnline;};
 
   Bool_t IsROCConfigurationEvent(){
@@ -235,9 +228,6 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
   Int_t CloseThisSegment();
   Int_t OpenNextSegment();
 
-  void DecodeEventIDBank(UInt_t *buffer);
-  Bool_t DecodeSubbankHeader(UInt_t *buffer);
-
   const TString&  DataFile(const UInt_t run, const Short_t seg);
 
   //  void SetEventLength(const ULong_t tmplength) {fEvtLength = tmplength;};
@@ -260,12 +250,6 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
 
 
  protected:
-  Bool_t fPhysicsEventFlag;
-
-
-  UInt_t fIDBankNum;
-
-
   Double_t fCleanParameter[3]; ///< Scan data/clean data from the green monster
 
 
@@ -313,7 +297,7 @@ template < class T > Bool_t QwEventBuffer::FillObjectWithEventData(T &object){
     //  Loop through the data buffer in this event.
     if (decoder->fBankDataType == 0x10){
       //  This bank is subbanked; loop through subbanks
-      while ((okay = DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
+      while ((okay = decoder->DecodeSubbankHeader(&localbuff[decoder->fWordsSoFar]))){
 	//  If this bank has further subbanks, restart the loop.
 	if (decoder->fSubbankType == 0x10) continue;
 	//  If this bank only contains the word 'NULL' then skip
