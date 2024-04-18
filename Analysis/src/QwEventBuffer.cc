@@ -502,7 +502,7 @@ Int_t QwEventBuffer::GetEvent()
     UInt_t* evBuffer = (UInt_t*)fEvStream->getEvBuffer();
 		if(fDataVersionVerify == 0){
 			// Issue, what if evbuffer is empty?
-  		VerifyCodaVersion(evBuffer[1]);
+  		VerifyCodaVersion(evBuffer);
 		}
 		
 		if( (fDataVersion != fDataVersionVerify) && (fDataVersionVerify != 0 )){
@@ -527,8 +527,10 @@ Int_t QwEventBuffer::GetEvent()
 //  		      2 -- Coda Version 2
 //		      3 -- Coda Version 3
 // 	   	      0 -- Default (Unknown, Could be a EPICs Event or a ROCConfiguration)
-void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
+void QwEventBuffer::VerifyCodaVersion( const UInt_t *buffer )
 {
+	if(buffer[0] == 0) return;
+	UInt_t header = buffer[1];
 	int top = (header & 0xff000000) >> 24;
 	int bot = (header & 0xff      );
 	fDataVersionVerify = 0; // Default
@@ -537,7 +539,6 @@ void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
 	} else if( (top != 0xff) && (bot == 0xcc) ){
 		fDataVersionVerify = 2; // Coda 2
 	} 
-	return;
 }
 
 Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)

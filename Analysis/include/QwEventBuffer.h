@@ -135,7 +135,7 @@ class QwEventBuffer: public MQwCodaControlEvent, public CodaDecoder {
   Bool_t GetNextEventRange();
   Bool_t GetNextRunRange();
   Bool_t GetNextRunNumber();
-	void VerifyCodaVersion( const UInt_t header);
+	void VerifyCodaVersion( const UInt_t *buffer);
 
   Int_t GetNextEvent();
 
