@@ -18,10 +18,9 @@
 /////////////////////////////////////////////////////////////////////
 
 #include "THaCodaData.h"
-#include "Decoder.h"
+#include "CustomAlloc.h"
 #include <vector>
 
-namespace Decoder {
 
 class THaCodaFile : public THaCodaData {
 
@@ -54,6 +53,5 @@ private:
 
 };
 
-} // namespace Decoder
 
 #endif

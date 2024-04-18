@@ -5,7 +5,6 @@
 
 #include <memory>
 
-namespace Decoder {
 // From https://stackoverflow.com/questions/21028299/is-this-behavior-of-vectorresizesize-type-n-under-c11-and-boost-container/21028912#21028912
 // Allocator adaptor that interposes construct() calls to
 // convert value initialization into default initialization.
@@ -37,6 +36,5 @@ using VectorUInt = std::vector<UInt_t>;
 // std::vector that does NOT zero-initialize its elements on resize()
 using VectorUIntNI = std::vector<UInt_t, default_init_allocator<UInt_t>>;
 
-} // namespace Decoder
 
 #endif //Podd_CustomAlloc_h_

@@ -1,5 +1,4 @@
 #include "QwEventBuffer.h"
-#include "CodaDecoder.h"
 
 #include "QwOptions.h"
 #include "QwEPICSEvent.h"
@@ -509,7 +508,7 @@ Int_t QwEventBuffer::GetEvent()
 		} else if(fDataVersion == 2){
 	 		DecodeEventIDBank(evBuffer);
 		} else { // fDataVersion == 3
-    		  DecodeEvent(evBuffer);
+    		  LoadEvent(evBuffer);
 		}
   } else {
     QwError << "QwEventBuffer::GetEvent:  CODA event is not recognized" << QwLog::endl;
@@ -535,173 +534,95 @@ void QwEventBuffer::VerifyCodaVersion( const UInt_t header)
 	return;
 }
 
-// Modified from CodaDecoder.h
-Int_t QwEventBuffer::physics_decode( const UInt_t* evbuffer )
+Int_t QwEventBuffer::LoadEvent(UInt_t* evbuffer)
 {
-	// returns a list of the rocs found
-	// stores the # of rocs in nroc
-	// stores 
-  event_num = tbank.evtNum;
-  fEvtNumber = tbank.evtNum;
-  FindRocsCoda3(evbuffer);
- 
-  return HED_OK;
-}
 
-
-Int_t  QwEventBuffer::DecodeEvent(const UInt_t* evbuffer)
-{
+  fPhysicsEventFlag = kFALSE;
+  Int_t ret = HED_OK;
 
   // Main engine for decoding, called by public LoadEvent() methods
   assert(evbuffer);
 
-  buffer = evbuffer;
-  event_length = evbuffer[0]+1;  // in longwords (4 bytes)
-  fEvtLength = event_length;
-  event_type = 0;
-  data_type = 0;
-  trigger_bits = 0;
+  fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
+  fEvtType = 0;
+	fEvtTag = 0;
+  fBankDataType = 0;
+	// Trigger Bank vars
   evt_time = 0;
-  bankdat.clear();
-  blkidx = 0;
+	trigger_bits = 0;
+	block_size = 0;
 
   // Determine event type
-  interpretCoda3(evbuffer);  // this defines event_type
-  
-  Int_t ret = HED_OK;
-  if (event_type == PRESTART_EVTYPE ) {
-    // Usually prestart is the first 'event'.  Call SetRunTime() to
-    // re-initialize the crate map since we now know the run time.
-    // This won't happen for split files (no prestart). For such files,
-    // the user should call SetRunTime() explicitly.
-    SetRunTime(evbuffer[2]);
-    fCurrentRun  = evbuffer[3];
-    run_type = evbuffer[4];
-    QwDebug << "Prestart Event : run_num " << fCurrentRun
-                << "  run type "   << run_type
-                << "  event_type " << event_type
-                << "  run time "   << fRunTime
-                << QwLog::endl;
-  }
+  interpretCoda3(evbuffer);
+	
 
-  else if( event_type == PRESCALE_EVTYPE || event_type == TS_PRESCALE_EVTYPE ) {
-  	ret = prescale_decode_coda3(evbuffer);
-    if (ret != HED_OK ) return ret;
+	// What to do with bad events?	
+  if( fEvtType <= MAX_PHYS_EVTYPE && ( (ret = trigBankDecode(evbuffer)) == HED_OK ) ) {
+  	  fPhysicsEventFlag = kTRUE;
+			// Originally from HallA::CodaDecoder::physics_decode which called
+			// and HallA::CodaDecoder::FindRocsCoda3
+			// Both of which had extra CrateMap logic (not needed for JAPAN)
+			// Below are the 4 lines needed from those two functions
+      fEvtNumber = tbank.evtNum;
+      UInt_t pos = 2 + tbank.len;
+	    fWordsSoFar = (pos); 
+	    fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
+  		//  Initialize the fragment size to the event size, in case the 
+  		//  event is not subbanked.
+  		fFragLength = fEvtLength-fWordsSoFar;
+			// TODO:
+			// What to do with fEvtClass and fStatSum ?
+		return ret;
   }
+	
+	// TrigBankDecode failed, return error code
+	if( ret != HED_OK)
+	{
+		QwWarning << "trigBankDecode returned with status = " << ret << QwLog::endl;
+		return ret;
+	}
 
-  else if( event_type <= MAX_PHYS_EVTYPE && !PrescanModeEnabled() ) {
-    if( (ret = trigBankDecode(evbuffer)) != HED_OK ) {
-      return ret;
-    }
-    ret = physics_decode(evbuffer);
-  }
-
+	//  Run this event through the Control event processing.
+	//  If it is not a control event, nothing will happen.
+	fBankDataType = (evbuffer[1] & 0xff00) >> 8; // not sure if this works
+  fEvtNumber = 0;
+  fWordsSoFar = (2);
+  //  Initialize the fragment size to the event size, in case the 
+ 	//  event is not subbanked.
+ 	fFragLength = fEvtLength-fWordsSoFar;
+	// TODO:
+	// What to do with fEvtClass and fStatSum ?
+	ProcessControlEvent(fEvtType, &evbuffer[fWordsSoFar]);
   return ret;
 }
 
-Int_t  QwEventBuffer::interpretCoda3( const UInt_t* evbuffer )
+Int_t  QwEventBuffer::interpretCoda3( UInt_t* evbuffer )
 {
   // Extract basic information from a CODA3 event
   tbank.Clear();
   tsEvType = 0;
-
-  bank_tag   = (evbuffer[1] & 0xffff0000) >> 16;
-  data_type  = (evbuffer[1] & 0xff00) >> 8;
+	
+  fEvtTag   = (evbuffer[1] & 0xffff0000) >> 16;
   block_size = evbuffer[1] & 0xff;
+	if(block_size > 1) { QwWarning << "MultiBlock is not properly supported! block_size = " 
+											 				   << block_size << QwLog::endl; }
+  fEvtType = InterpretBankTag(fEvtTag);
 
-  event_type = InterpretBankTag(bank_tag);
-  fEvtType = event_type;
-
-  if( bank_tag < 0xff00 ) { // User event type
-		if( (event_type != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
+  if( fEvtTag < 0xff00 ) { // User event type
+		if( (fEvtType != EPICS_EVTYPE) && ( !IsROCConfigurationEvent() ) ){
     	if ( QwDebug )    // if set, character data gets printed.
-    			QwDebug << " User defined event type " << event_type << QwLog::endl;
-      		debug_print(evbuffer);
+    			QwDebug << " User defined event type " << fEvtType << QwLog::endl;
+      		debug_print(fEvtTag, evbuffer);
 			}
   }
-    QwDebug << "CODA 3  Event type " << event_type << " trigger_bits "
+    QwDebug << "CODA 3  Event type " << fEvtType << " trigger_bits "
                 << trigger_bits << "  tsEvType  " << tsEvType
                 << "  evt_time " << GetEvTime() << QwLog::endl;
 
   return HED_OK;
 }
 
-Int_t QwEventBuffer::FindRocsCoda3(const UInt_t *evbuffer)
-{ // CODA3 version
-
-// Find the pointers and lengths of ROCs in CODA3
-// ROC = ReadOut Controller, synonymous with "crate".
-// Earlier we had decoded the Trigger Bank in method trigBankDecode.
-// This filled the tbank structure.
-// For CODA3, the ROCs start after the Trigger Bank.
-
-	// TODO:
-	// These two lines is essentially all we need to extract because 
-	// QwEvent::FillSubsytemData(...) has logic to handle the rocs and subbanks
-	// We also need the bank type which we can obtain here or later...
-  UInt_t pos = 2 + tbank.len;
-	fWordsSoFar = (pos); // this is the word right before 0x21001
-                       // evbuffer[pos+1] prints out 0x21001
-	fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
-  // It is unclear to me how JAPAN handles mutli-roc setups...
-  nroc=0;
-
-  std::for_each(ALL(rocdat), []( RocDat_t& ROC ) { ROC.clear(); });
-
-  while (pos+1 < event_length) {
-    UInt_t len = evbuffer[pos];          /* total Length of ROC Bank data */
-    UInt_t iroc = (evbuffer[pos+1]&0x0fff0000)>>16;   /* ID of ROC is 12 bits*/
-    if( iroc >= MAXROC ) {
-      return HED_ERR;
-    }
-    rocdat[iroc].len = len;
-    rocdat[iroc].pos = pos;
-    irn[nroc] = iroc;
-    pos += len+1;
-    nroc++;
-  }
-
-  /* Sanity check:  Check if number of ROCs matches */
-  /* if(nroc != tbank.nrocs) {
-      printf(" ****ERROR: Trigger and Physics Block sizes do not match (%d != %d)\n",nroc,tbank.nrocs);
-// If you are reading a data file originally written with CODA 2 and then
-// processed (written out) with EVIO 4, it will segfault. Do as it says below.
-      printf("This might indicate a file written with EVIO 4 that was a CODA 2 file\n");
-      printf("Try  analyzer->SetCodaVersion(2)  in the analyzer script.\n");
-      return HED_ERR;
-  }*/
-
-  if (QwDebug) {  // debug
-
-    QwDebug << QwLog::endl << "  FindRocsCoda3 :: Starting Event number = " << std::dec << tbank.evtNum;
-    QwDebug << QwLog::endl;
-    QwDebug << "    Trigger Bank Len = "<<tbank.len<<" words "<<QwLog::endl;
-    QwDebug << "    There are "<<nroc<<"  ROCs"<<QwLog::endl;
-    for( UInt_t i = 0; i < nroc; i++ ) {
-      QwDebug << "     ROC ID = "<<irn[i]<<"  pos = "<<rocdat[irn[i]].pos
-          <<"  Len = "<<rocdat[irn[i]].len<<QwLog::endl;
-    }
-    QwDebug << "    Trigger BANK INFO,  TAG = "<<std::hex<<tbank.tag<<std::dec<<QwLog::endl;
-    QwDebug << "    start "<<std::hex<<tbank.start<<"      blksize "<<std::dec<<tbank.blksize
-        <<"  len "<<tbank.len<<"   tag "<<tbank.tag<<"   nrocs "<<tbank.nrocs<<"   evtNum "<<tbank.evtNum;
-    QwDebug << QwLog::endl;
-    QwDebug << "         Event #       Time Stamp       Event Type"<<QwLog::endl;
-    for( UInt_t i = 0; i < tbank.blksize; i++ ) {
-      if( tbank.evTS ) {
-          QwDebug << "      "<<std::dec<<tbank.evtNum+i<<"   "<<tbank.evTS[i]<<"   "<<tbank.evType[i];
-          QwDebug << QwLog::endl;
-       } else {
-          QwDebug << "     "<<tbank.evtNum+i<<"(No Time Stamp)   "<<tbank.evType[i];
-          QwDebug << QwLog::endl;
-       }
-       QwDebug << "\n" <<QwLog::endl;
-    }
-  }
-
-  return 1;
-}
-
-Int_t QwEventBuffer::trigBankDecode( const UInt_t* evbuffer )
+Int_t QwEventBuffer::trigBankDecode( UInt_t* evbuffer )
 {
   // Decode the CODA3 trigger bank. Copy relevant data to member variables.
   // This will initialize the crate map.
@@ -714,7 +635,10 @@ Int_t QwEventBuffer::trigBankDecode( const UInt_t* evbuffer )
     return HED_ERR;
   }
   try {
-    tbank.Fill(evbuffer + 2, block_size,0 );
+		// TODO:
+		// How does JAPAN want to handle Trigger Supervisors?
+		uint32_t crate_num_TS = 0; 	
+    tbank.Fill(evbuffer + 2, block_size, crate_num_TS );
   }
   catch( const coda_format_error& e ) {
     Error(here, "CODA 3 format error: %s", e.what() );
@@ -774,7 +698,7 @@ Int_t QwEventBuffer::WriteFileEvent(int* buffer)
   Int_t status = CODA_OK;
   //  fEvStream is of inherited type THaCodaData,
   //  but codaWrite is only defined for THaCodaFile.
-  status = ((Decoder::THaCodaFile*)fEvStream)->codaWrite((UInt_t*)buffer);
+  status = ((THaCodaFile*)fEvStream)->codaWrite((UInt_t*)buffer);
   return status;
 }
 
@@ -810,9 +734,9 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
 		header.push_back(localtime);
 		header.push_back(0x0);
 		header.push_back(0x1850001);
-		header.push_back(0xc0da);
+		header.push_back(0xc0da); // TS# Trigger
 		header.push_back(0x2010002);
-		header.push_back(0xc0da01);	
+		header.push_back(0xc0da01);  	
 		header.push_back(0xc0da02);	
 
 	}
@@ -1012,8 +936,6 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
   ///      The configuration event for a ROC must have the same
   ///      subbank structure as the physics events for that ROC.
   Bool_t okay = kTRUE;
-  // TODO:
-  // What is this rocnum?
   UInt_t rocnum = fEvtType - 0x90;
   QwMessage << "QwEventBuffer::FillSubsystemConfigurationData:  "
 	    << "Found configuration event for ROC"
@@ -1029,7 +951,7 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
 	if(fDataVersion == 2)
 		DecodeEventIDBank(localbuff);
 	else
-  		DecodeEvent(localbuff);
+  		LoadEvent(localbuff);
   while ((okay = DecodeSubbankHeader(&localbuff[fWordsSoFar]))){
     //  If this bank has further subbanks, restart the loop.
     if (fSubbankType == 0x10) {
@@ -1076,7 +998,7 @@ Bool_t QwEventBuffer::FillSubsystemData(QwSubsystemArray &subsystems)
 	if(fDataVersion == 2)
 		DecodeEventIDBank(localbuff);
 	else
-  	DecodeEvent(localbuff);
+  	LoadEvent(localbuff);
 
   //  Clear the old event information from the subsystems.
   subsystems.ClearEventData();
@@ -1184,8 +1106,6 @@ Bool_t QwEventBuffer::FillEPICSData(QwEPICSEvent &epics)
 // 	  << Form("Status Summary: 0x%.8x; Words so far %d",
 // 		  fStatSum, fWordsSoFar)
 // 	  << QwLog::endl;
-	QwMessage << "HERE IS WHERE THE ERROR LIES" << QwLog::endl;
-
   ///
   Bool_t okay = kTRUE;
   if (! IsEPICSEvent()){
@@ -1513,7 +1433,7 @@ Int_t QwEventBuffer::OpenDataFile(const TString filename, const TString rw)
     QwDebug << "QwEventBuffer::OpenDataFile:  File handle doesn't exist.\n"
 	    << "                              Try to open a new file handle!"
 	    << QwLog::endl;
-    fEvStream = new Decoder::THaCodaFile();
+    fEvStream = new THaCodaFile();
     fEvStreamMode = fEvStreamFile;
   } else if (fEvStreamMode!=fEvStreamFile){
     QwError << "QwEventBuffer::OpenDataFile:  The stream is not configured as an input\n"

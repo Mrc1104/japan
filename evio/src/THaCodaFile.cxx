@@ -22,7 +22,6 @@
 
 using namespace std;
 
-namespace Decoder {
 
 //Constructors
 
@@ -268,7 +267,6 @@ Int_t THaCodaFile::filterToFile( const char* output_file )
     }
     handle = 0;
   }
-}
 
 //_____________________________________________________________________________
-ClassImp(Decoder::THaCodaFile)
+ClassImp(THaCodaFile)

@@ -18,7 +18,6 @@
 
 #include "Rtypes.h"
 #include "TString.h"
-#include "Decoder.h"
 #include "CustomAlloc.h"
 #include <cstdio>   // for EOF
 #include <vector>
@@ -34,7 +33,6 @@
 #define MAXEVLEN 80000    // Maximum size of events
 #define CODA_VERBOSE 1    // Errors explained verbosely (recommended)
 #define CODA_DEBUG  0     // Lots of printout (recommend to set = 0)
-namespace Decoder {
 
 // Dynamically-sized event buffer
 class EvtBuffer {
@@ -98,6 +96,5 @@ protected:
 
 };
 
-}
 
 #endif
