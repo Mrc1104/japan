@@ -961,11 +961,7 @@ Bool_t QwEventBuffer::FillSubsystemConfigurationData(QwSubsystemArray &subsystem
 	    << "Found configuration event for ROC"
 	    << rocnum
 	    << QwLog::endl;
-  QwMessage << Form("Length: %d; Tag: 0x%x; Bank data type: 0x%x; Bank ID num: 0x%x; ",
-		    decoder->fEvtLength, decoder->fEvtTag, decoder->fBankDataType, fIDBankNum)
-	    << Form("Evt type: 0x%x; Evt number %d; Evt Class 0x%.8x; ",
-		    decoder->fEvtType, decoder->fEvtNumber, decoder->fEvtClass)
-	    << QwLog::endl;
+	decoder->PrintDecoderInfo(QwMessage);
   //  Loop through the data buffer in this event.
   UInt_t *localbuff = (UInt_t*)(fEvStream->getEvBuffer());
 	decoder->DecodeEventIDBank(localbuff);

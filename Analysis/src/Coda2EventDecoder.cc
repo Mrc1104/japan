@@ -1,5 +1,6 @@
 #include "Coda2EventDecoder.h"
 #include "THaCodaFile.h"
+#include "QwOptions.h"
 
 #include <vector>
 #include <ctime>
@@ -8,7 +9,7 @@
 
 std::vector<UInt_t> Coda2EventDecoder::EncodePHYSEventHeader()
 {
-	vector<UInt_t> header;
+	std::vector<UInt_t> header;
 	header.push_back((0x0001 << 16) | (0x10 << 8) | 0xCC);
 	// event type | event data type | event ID (0xCC for CODA event)
 	header.push_back(4);	// size of header field
@@ -22,10 +23,9 @@ std::vector<UInt_t> Coda2EventDecoder::EncodePHYSEventHeader()
 }
 
 
-void Coda2EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype = 0)
+void Coda2EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype)
 {
 	int localtime  = (int)time(0);
-	int eventcount = 0;
 	buffer[0] = 4; // Prestart event length
 	// TODO: We need access to the ControlEvent enum
 	buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
@@ -40,7 +40,7 @@ void Coda2EventDecoder::EncodeGoEventHeader(int* buffer, int buffer_size)
 	int eventcount = 0;
 	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // Go event length
-	buffer[1] = buffer[1] = ((kGO_EVENT << 16) | (0x01 << 8) | 0xCC);
+	buffer[1] = ((kGO_EVENT << 16) | (0x01 << 8) | 0xCC);
 	buffer[2] = localtime;
 	buffer[3] = 0; // unused
 	buffer[4] = eventcount;
@@ -64,7 +64,7 @@ void Coda2EventDecoder::EncodeEndEventHeader(int* buffer, int buffer_size)
 	int eventcount = 0;
 	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // End event length
-	buffer[1] = buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
+	buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
 	buffer[2] = localtime;
 	buffer[3] = 0; // unused
 	buffer[4] = eventcount; 
@@ -166,4 +166,23 @@ Int_t Coda2EventDecoder::DecodeEventIDBank(UInt_t *buffer)
 	  << QwLog::endl;
 
 	return CODA_OK;
+}
+
+
+Bool_t Coda2EventDecoder::IsPhysicsEvent()
+{
+	// TODO:
+	// Replace this with a simple (return kPhysicsEventFlag)
+	return ((fIDBankNum == 0xCC) && ( /* fEvtType >= 0 && */ fEvtType <= 15));
+}
+
+
+void Coda2EventDecoder::PrintDecoderInfo(QwLog& out)
+{
+
+  out << Form("Length: %d; Tag: 0x%x; Bank data type: 0x%x; Bank ID num: 0x%x; ",
+		    						fEvtLength, fEvtTag, fBankDataType, fIDBankNum)
+	    			<< Form("Evt type: 0x%x; Evt number %d; Evt Class 0x%.8x; ",
+		    						fEvtType, fEvtNumber, fEvtClass)
+	    			<< QwLog::endl;
 }

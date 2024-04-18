@@ -21,6 +21,7 @@ public:
 public:
 // Decoding Functions
   virtual Int_t DecodeEventIDBank(UInt_t *buffer);
+	virtual void PrintDecoderInfo(QwLog& out);
 public:
 // Boolean Functions
 	virtual Bool_t IsPhysicsEvent();

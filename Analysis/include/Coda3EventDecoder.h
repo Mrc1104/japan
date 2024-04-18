@@ -2,30 +2,37 @@
 #define CODA3EVENTDECODER_H
 
 #include "VEventDecoder.h"
-#include "RTypes.h"
+#include "Rtypes.h"
 
 #include <vector>
 
 class Coda3EventDecoder : public VEventDecoder
 {
 public:
-		Coda3EventDecoder() { }
+		Coda3EventDecoder() : fControlEventFlag(kFALSE), TSROCNumber(0) { }
 		~Coda3EventDecoder() { }
 public:
-	// Encoding Functions
+// Encoding Functions
 	virtual std::vector<UInt_t> EncodePHYSEventHeader();
 	virtual void EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype = 0);
-  virtual void EncodeGoEventHeader(int* buffer, buffer_size);
+  virtual void EncodeGoEventHeader(int* buffer, int buffer_size);
   virtual void EncodePauseEventHeader(int* buffer, int buffer_size);
   virtual void EncodeEndEventHeader(int* buffer, int buffer_size);
 
 public:
+// Decoding Functions
   virtual Int_t DecodeEventIDBank(UInt_t *buffer);
+public:
+// Boolean Functions
+	virtual Bool_t IsPhysicsEvent();
+private:
+// Debugging Functions
+	void printUserEvent(const UInt_t *buffer);
+	virtual void PrintDecoderInfo(QwLog& out);
 protected:
-	Int_t LoadEvent(UInt_t* evbuffer);
-	Int_t interpretCoda3(UInt_t* evbuffer);
-	Int_t trigBankDecode(UInt_t* evbuffer);
 	UInt_t InterpretBankTag(UInt_t tag);
+	Int_t trigBankDecode(UInt_t* buffer);
+	void trigBankErrorHandler( Int_t flag );
 
 protected:
 	ULong64_t GetEvTime() const { return evt_time; }
@@ -92,5 +99,14 @@ public:
   static const UInt_t SCALER_EVTYPE    = 140;
   static const UInt_t SBSSCALER_EVTYPE = 141;
   static const UInt_t HV_DATA_EVTYPE   = 150;
+
+protected:
+	// TODO:
+	// Should we move this to parent class VEventDecoder?
+	// (See discussion in VEventDecoder's inheritance)
+	Bool_t fControlEventFlag;
+	// TODO:
+	// How does JAPAN want to handle a TS?
+	uint32_t TSROCNumber;
 };
 #endif

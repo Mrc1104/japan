@@ -17,6 +17,7 @@
 #include "Rtypes.h"
 #include "QwTypes.h"
 #include "MQwCodaControlEvent.h"
+#include "QwOptions.h"
 
 
 /* TODO:
@@ -45,6 +46,7 @@ public:
 // Decoding Functions
   virtual Int_t DecodeEventIDBank(UInt_t *buffer) = 0;
   virtual Bool_t DecodeSubbankHeader(UInt_t *buffer);
+	virtual void PrintDecoderInfo(QwLog& out);
 
 public:
 // Boolean Functions

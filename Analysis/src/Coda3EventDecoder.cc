@@ -1,15 +1,18 @@
 #include "Coda3EventDecoder.h"
 #include "THaCodaFile.h"
+#include "QwOptions.h"
 
 #include <vector>
 #include <ctime>
 
+#include "TError.h"
 
 // Encoding Functions
 
 std::vector<UInt_t> Coda3EventDecoder::EncodePHYSEventHeader()
 {
  	int localtime = (int) time(0);
+	std::vector<UInt_t> header;
 	// TODO:
 	// Could we make this more dynamic by reversing the TBOBJ::Fill mechanism?
 	header.push_back(0xFF501001);
@@ -36,10 +39,9 @@ std::vector<UInt_t> Coda3EventDecoder::EncodePHYSEventHeader()
 }
 
 
-void Coda3EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype = 0)
+void Coda3EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype)
 {
 	int localtime  = (int)time(0);
-	int eventcount = 0;
 	buffer[0] = 4; // Prestart event length
 	// TODO: We need access to the ControlEvent enum
 	buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
@@ -85,65 +87,336 @@ void Coda3EventDecoder::EncodeEndEventHeader(int* buffer, int buffer_size)
 }
 
 
-void Coda3EventDecoder::DecodeEventIDBank(UInt_t *buffer)
+Int_t Coda3EventDecoder::DecodeEventIDBank(UInt_t *buffer)
 {
-
+	// TODO:
+	// How should we handle bad events??
   fPhysicsEventFlag = kFALSE;
+	fControlEventFlag = kFALSE;
   Int_t ret = HED_OK;
 
   // Main engine for decoding, called by public LoadEvent() methods
-  assert(evbuffer);
-
-  fEvtLength = evbuffer[0]+1;  // in longwords (4 bytes)
+  // this assert checks to see if buffer points to NULL
+  assert(buffer);
+	
+	// General Event information
+  fEvtLength = buffer[0]+1;  // in longwords (4 bytes)
   fEvtType = 0;
 	fEvtTag = 0;
   fBankDataType = 0;
-	// Trigger Bank vars
+
+	// Prep TBOBJ variables
+	tbank.Clear();
+	tsEvType = 0;
   evt_time = 0;
 	trigger_bits = 0;
 	block_size = 0;
+		
+	// Start Filling Data
+	fEvtTag     = (buffer[1] & 0xffff0000) >> 16;
+	fBankDataType = (buffer[1] & 0xff00) >> 8;
+	block_size  =	(buffer[1] & 0xff); 
 
-  // Determine event type
-  interpretCoda3(evbuffer);
-	
+	if(block_size > 1) { QwWarning << "MultiBlock is not properly supported! block_size = " 
+											 				   << block_size << QwLog::endl; }
+	// Determine the event type by the call
+	fEvtType = InterpretBankTag(fEvtTag);		
+	fWordsSoFar = (2);
+	if(fEvtTag < 0xff00) { /* user event */ printUserEvent(buffer); }
+	else if(fControlEventFlag) {
+		fEvtNumber = 0;	ProcessControlEvent(fEvtType, &buffer[fWordsSoFar]);
+	}
+	else if(fPhysicsEventFlag) { 
+		ret = trigBankDecode( buffer );
+		if(ret != HED_OK) { trigBankErrorHandler( ret ); }
+		else { 
+			fEvtNumber = tbank.evtNum;
+			fWordsSoFar = 2 + tbank.len;
+		}
+	}
+	else { // Not a control event, user event, nor physics event. Not sure what it is
+      	 //  Arbitrarily set the event type to "fEvtTag".
+      	 //  The first two words have been examined.
+    QwWarning << "!!! Cannot determine the event type !!!" << QwLog::endl;
+		QwMessage << "Printing Event Buffer:";
+		QwMessage << "\n------------\n" << QwLog::endl;
+		for(size_t index = 0; fEvtLength; index++){
+ 			// TODO: // what if fEvtLength is gibberish because the event is gibberish?
+			QwMessage << "\t" << buffer[index];
+			if(index % 4 == 0){ QwMessage << QwLog::endl; }
+		}	
+		QwMessage << "\n------------\n" << QwLog::endl;
 
-	// What to do with bad events?	
-  if( fEvtType <= MAX_PHYS_EVTYPE && ( (ret = trigBankDecode(evbuffer)) == HED_OK ) ) {
-  	fPhysicsEventFlag = kTRUE;
-		// Originally from HallA::CodaDecoder::physics_decode which called
-		// and HallA::CodaDecoder::FindRocsCoda3
-		// Both of which had extra CrateMap logic (not needed for JAPAN)
-		// Below are the 4 lines needed from those two functions
-    fEvtNumber = tbank.evtNum;
-    UInt_t pos = 2 + tbank.len;
-	  fWordsSoFar = (pos); 
-	  fBankDataType = (evbuffer[pos+1] & 0xff00) >> 8;
-  	//  Initialize the fragment size to the event size, in case the 
-  	//  event is not subbanked.
-  	fFragLength = fEvtLength-fWordsSoFar;
-		// TODO:
-		// What to do with fEvtClass and fStatSum ?
-		return ret;
-  }
-
-	// TrigBankDecode failed, return error code
-	if( ret != HED_OK)
-	{
-		QwWarning << "trigBankDecode returned with status = " << ret << QwLog::endl;
-		return ret;
+ 		fEvtType = fEvtTag;	fEvtNumber = 0;
 	}
 
-	//  Run this event through the Control event processing.
-	//  If it is not a control event, nothing will happen.
-	fBankDataType = (evbuffer[1] & 0xff00) >> 8; // not sure if this works
-  fEvtNumber = 0;
-  fWordsSoFar = (2);
-  //  Initialize the fragment size to the event size, in case the 
- 	//  event is not subbanked.
- 	fFragLength = fEvtLength-fWordsSoFar;
-	// TODO:
-	// What to do with fEvtClass and fStatSum ?
-	ProcessControlEvent(fEvtType, &evbuffer[fWordsSoFar]);
-  return ret;
+	fFragLength = fEvtLength - fWordsSoFar;	
+  QwDebug << Form("buffer[0-1] 0x%x 0x%x ; ", buffer[0], buffer[1]);
+	PrintDecoderInfo(QwDebug);
 
+	return CODA_OK;
 }
+
+Bool_t Coda3EventDecoder::IsPhysicsEvent()
+{
+	return (fEvtType <= MAX_PHYS_EVTYPE);
+}
+
+//_____________________________________________________________________________
+UInt_t Coda3EventDecoder::InterpretBankTag( UInt_t tag )
+{
+  UInt_t evtyp{};
+  if( tag >= 0xff00 ) { // CODA Reserved bank type
+    switch( tag ) {
+      case 0xffd1:
+        evtyp = kPRESTART_EVENT; // MQwControlEvent (protected -> needs to be made public 
+        														// and function needs to be a QwEventBuffer Member)
+        // TODO:
+        // Should I call ProcessControlEvent here?
+        // (See discussion in VEventDecoder's inheritance)
+				fControlEventFlag = kTRUE;
+        break;
+      case 0xffd2:
+         evtyp = kGO_EVENT; // MQwControlEvent (protected -> needs to be made public 
+        														// and function needs to be a QwEventBuffer Member)
+        // TODO:
+        // Should I call ProcessControlEvent here?
+        // (See discussion in VEventDecoder's inheritance)
+				fControlEventFlag = kTRUE;
+        break;
+      case 0xffd4:
+        evtyp = kEND_EVENT; // MQwControlEvent (protected -> needs to be made public 
+        											// and function needs to be a QwEventBuffer Member)
+        // TODO:
+        // Should I call ProcessControlEvent here?
+        // (See discussion in VEventDecoder's inheritance)
+				fControlEventFlag = kTRUE;
+        break;
+      case 0xff50:
+      case 0xff58:      // Physics event with sync bit
+      case 0xFF78:
+      case 0xff70:
+        evtyp = 1;      // for CODA 3.* physics events are type 1.
+				fPhysicsEventFlag=kTRUE;
+        break;
+      default:          // Undefined CODA 3 event type
+        QwWarning << "CodaDecoder:: WARNING:  Undefined CODA 3 event type, tag = "
+             << "0x" << std::hex << tag << std::dec << QwLog::endl;
+        evtyp = 0;
+        //FIXME evtyp = 0 could also be a user event type ...
+        // maybe throw an exception here?
+    }
+  } else {              // User event type
+    evtyp = tag;        // EPICS, ROC CONFIG, ET-insertions, etc. 
+  }
+
+  return evtyp;
+}
+
+
+void Coda3EventDecoder::printUserEvent(const UInt_t *buffer)
+{
+  // checks of ET-inserted data
+  Int_t print_it=0;
+
+  switch( fEvtType ) {
+
+  case EPICS_EVTYPE:
+    QwMessage << "EPICS data "<<QwLog::endl;
+    print_it=1;
+    break;
+	// Do we need this event?
+  case PRESCALE_EVTYPE:
+    QwMessage << "Prescale data "<<QwLog::endl;
+    print_it=1;
+    break;
+	// Do we need this event?
+  case DAQCONFIG_FILE1:
+    QwMessage << "DAQ config file 1 "<<QwLog::endl;
+    print_it=1;
+    break;
+	// Do we need this event?
+  case DAQCONFIG_FILE2:
+    QwMessage << "DAQ config file 2 "<<QwLog::endl;
+    print_it=1;
+    break;
+	// Do we need this event?
+  case SCALER_EVTYPE:
+    QwMessage << "LHRS scaler event "<<QwLog::endl;
+    print_it=1;
+    break;
+	// Do we need this event?
+  case SBSSCALER_EVTYPE:
+    QwMessage << "SBS scaler event "<<QwLog::endl;
+    print_it=1;
+    break;
+	// Do we need this event?
+  case HV_DATA_EVTYPE:
+    QwMessage << "High voltage data event "<<QwLog::endl;
+    print_it=1;
+    break;
+  default:
+    // something else ?
+    QwMessage << "\n--- Special event type: " << fEvtTag << "\n" << QwLog::endl;
+  }
+  if(print_it) {
+    char *cbuf = (char *)buffer; // These are character data
+    size_t elen = sizeof(int)*(buffer[0]+1);
+    QwMessage << "Dump of event buffer .  Len = "<<elen<<QwLog::endl;
+    // This dump will look exactly like the text file that was inserted.
+    for (size_t ii=0; ii<elen; ii++) QwMessage << cbuf[ii];
+  }
+}
+
+void Coda3EventDecoder::PrintDecoderInfo(QwLog& out)
+{
+
+  out << Form("Length: %d; Tag: 0x%x; Bank data type: 0x%x ",
+		    						fEvtLength, fEvtTag, fBankDataType)
+	    			<< Form("Evt type: 0x%x; Evt number %d; fWordsSoFar %d",
+		    						fEvtType, fEvtNumber, fWordsSoFar )
+	    			<< QwLog::endl;
+}
+
+Int_t Coda3EventDecoder::trigBankDecode( UInt_t* buffer)
+{
+	const char* const HERE = "Coda3EventDecoder::trigBankDecode";
+	if(block_size == 0) {
+		QwError << HERE << ": CODA 3 Format Error: Physics event #" << fEvtNumber 
+						<< " with block size 0" << QwLog::endl;
+		return HED_ERR;
+	}
+	// Set up exception handling for the PHYS Bank
+	try {
+		// TODO:
+		// How does JAPAN want to handle a TS?
+		tbank.Fill(&buffer[fWordsSoFar], block_size, TSROCNumber);
+	} 
+	catch( const coda_format_error& e ) {
+    Error(HERE, "CODA 3 format error: %s", e.what() );
+    return HED_ERR;
+	}
+  // Copy pertinent data to member variables for faster retrieval
+  LoadTrigBankInfo(0);  // Load data for first event in block
+	return HED_OK;
+}
+
+
+//_____________________________________________________________________________
+uint32_t Coda3EventDecoder::TBOBJ::Fill( const uint32_t* evbuffer,
+                                   uint32_t blkSize, uint32_t tsroc )
+{
+  if( blkSize == 0 )
+    throw std::invalid_argument("CODA block size must be > 0");
+  start = evbuffer;
+  blksize = blkSize;
+  len = evbuffer[0] + 1;
+  tag = (evbuffer[1] & 0xffff0000) >> 16;
+  nrocs = evbuffer[1] & 0xff;
+
+  const uint32_t* p = evbuffer + 2;
+  // Segment 1:
+  //  uint64_t event_number
+  //  uint64_t run_info                if withRunInfo
+  //  uint64_t time_stamp[blkSize]     if withTimeStamp
+  {
+    uint32_t slen = *p & 0xffff;
+    if( slen != 2*(1 + (withRunInfo() ? 1 : 0) + (withTimeStamp() ? blkSize : 0)))
+      throw coda_format_error("Invalid length for Trigger Bank seg 1");
+    const auto* q = (const uint64_t*) (p + 1);
+    evtNum  = *q++;
+    runInfo = withRunInfo()   ? *q++ : 0;
+    evTS    = withTimeStamp() ? q    : nullptr;
+    p += slen + 1;
+  }
+  if( p-evbuffer >= len )
+    throw coda_format_error("Past end of bank after Trigger Bank seg 1");
+
+  // Segment 2:
+  //  uint16_t event_type[blkSize]
+  //  padded to next 32-bit boundary
+  {
+    uint32_t slen = *p & 0xffff;
+    if( slen != (blkSize-1)/2 + 1 )
+      throw coda_format_error("Invalid length for Trigger Bank seg 2");
+    evType = (const uint16_t*) (p + 1);
+    p += slen + 1;
+  }
+
+  // nroc ROC segments containing timestamps and optional
+  // data like trigger latch bits:
+  // struct {
+  //   uint64_t roc_time_stamp;     // Lower 48 bits only seem to be the time.
+  //   uint32_t roc_trigger_bits;   // Optional. Typically only in TSROC.
+  // } roc_segment[blkSize];
+  TSROC = nullptr;
+  tsrocLen = 0;
+  for( uint32_t i = 0; i < nrocs; ++i ) {
+    if( p-evbuffer >= len )
+      throw coda_format_error("Past end of bank while scanning trigger bank segments");
+    uint32_t slen = *p & 0xffff;
+    uint32_t rocnum = (*p & 0xff000000) >> 24;
+		// TODO:
+		// tsroc is the crate # of the TS
+		// This is filled with the THaCrateMap class which we are not using
+		// can we just remove the if block below?
+    if( rocnum == tsroc ) {
+      TSROC = p + 1;
+      tsrocLen = slen;
+      break;
+    }
+    p += slen + 1;
+  }
+
+  return len;
+}
+
+Int_t Coda3EventDecoder::LoadTrigBankInfo( UInt_t i )
+{
+  // CODA3: Load tsEvType, evt_time, and trigger_bits for i-th event
+  // in event block buffer. index_buffer must be < block size.
+
+  assert(i < tbank.blksize);
+  if( i >= tbank.blksize )
+    return -1;
+  tsEvType = tbank.evType[i];      // event type (configuration-dependent)
+  if( tbank.evTS )
+    evt_time = tbank.evTS[i];      // event time (4ns clock, I think)
+  else if( tbank.TSROC ) {
+    UInt_t struct_size = tbank.withTriggerBits() ? 3 : 2;
+    evt_time = *(const uint64_t*) (tbank.TSROC + struct_size * i);
+    // Only the lower 48 bits seem to contain the time
+    evt_time &= 0x0000FFFFFFFFFFFF;
+  }
+  if( tbank.withTriggerBits() )
+    // Trigger bits. Only the lower 6 bits seem to contain the actual bits
+    trigger_bits = tbank.TSROC[2 + 3 * i] & 0x3F;
+
+  return 0;
+}
+
+
+void Coda3EventDecoder::trigBankErrorHandler( Int_t flag )
+{
+	// TODO:
+	// How should we handle bad events?
+	// We should most likely display a warning and then skip event, but how?
+	QwError << "trigBankErrorHandling is not yet support!" << QwLog::endl;
+	// Act as if we are at the end of the event and setr everything to false (0)
+	fPhysicsEventFlag = kFALSE;
+	fControlEventFlag = kFALSE;
+	
+  fEvtType = 0;
+	fEvtTag = 0;
+  fBankDataType = 0;
+	tbank.Clear();
+	tsEvType = 0;
+  evt_time = 0;
+	trigger_bits = 0;
+	block_size = 0;
+	
+	fWordsSoFar = fEvtLength;
+}
+
+
+
