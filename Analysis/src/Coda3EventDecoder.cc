@@ -21,13 +21,11 @@ std::vector<UInt_t> Coda3EventDecoder::EncodePHYSEventHeader()
 	header.push_back(0x010a0004); 
 
 	// evtnum is held by a 64 bit ... for now we set the upper 32 bits to 0
-	// I don't think I have this order correct....
-	header.push_back(++fEvtNumber ); // Isn't this the upper 32 ?
+	header.push_back(++fEvtNumber );
 	header.push_back(0x0);
 
 	// evttime is held by a 64 bit (bits 0-48 is the time) ... for now we set the upper 32 bits to 0
-	// I don't think I have this order correct...
-	header.push_back(localtime); // Isn't this the upper 32 ?
+	header.push_back(localtime); 
 	header.push_back(0x0);
 
 	header.push_back(0x1850001);
