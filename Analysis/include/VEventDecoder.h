@@ -37,10 +37,10 @@ public:
 public:
 // Encoding Functions
 	virtual std::vector<UInt_t> EncodePHYSEventHeader()                = 0;
-	virtual void EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype = 0) = 0;
-  virtual void EncodeGoEventHeader(int* buffer, int buffer_size)         = 0;
-  virtual void EncodePauseEventHeader(int* buffer, int buffer_size)  = 0;
-  virtual void EncodeEndEventHeader(int* buffer, int buffer_size)    = 0;
+	virtual void EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype, int localtime) = 0;
+  virtual void EncodeGoEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)     = 0;
+  virtual void EncodePauseEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)  = 0;
+  virtual void EncodeEndEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)    = 0;
 
 public:
 // Decoding Functions

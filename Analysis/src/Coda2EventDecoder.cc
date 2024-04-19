@@ -23,9 +23,8 @@ std::vector<UInt_t> Coda2EventDecoder::EncodePHYSEventHeader()
 }
 
 
-void Coda2EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype)
+void Coda2EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype, int localtime)
 {
-	int localtime  = (int)time(0);
 	buffer[0] = 4; // Prestart event length
 	// TODO: We need access to the ControlEvent enum
 	buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
@@ -34,11 +33,8 @@ void Coda2EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, 
 	buffer[4] = runtype;
 }
 
-void Coda2EventDecoder::EncodeGoEventHeader(int* buffer, int buffer_size)
+void Coda2EventDecoder::EncodeGoEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)
 {
-	int localtime  = (int)time(0);
-	int eventcount = 0;
-	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // Go event length
 	buffer[1] = ((kGO_EVENT << 16) | (0x01 << 8) | 0xCC);
 	buffer[2] = localtime;
@@ -46,11 +42,8 @@ void Coda2EventDecoder::EncodeGoEventHeader(int* buffer, int buffer_size)
 	buffer[4] = eventcount;
 }
 
-void Coda2EventDecoder::EncodePauseEventHeader(int* buffer, int buffer_size)
+void Coda2EventDecoder::EncodePauseEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)
 {
-	int localtime  = (int)time(0);
-	int eventcount = 0;
-	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // Pause event length
 	buffer[1] = ((kPAUSE_EVENT << 16) | (0x01 << 8) | 0xCC);
 	buffer[2] =	localtime;
@@ -58,11 +51,8 @@ void Coda2EventDecoder::EncodePauseEventHeader(int* buffer, int buffer_size)
 	buffer[4] = eventcount;
 }
 
-void Coda2EventDecoder::EncodeEndEventHeader(int* buffer, int buffer_size)
+void Coda2EventDecoder::EncodeEndEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)
 {
-	int localtime  = (int)time(0);
-	int eventcount = 0;
-	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // End event length
 	buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
 	buffer[2] = localtime;

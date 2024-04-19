@@ -39,48 +39,37 @@ std::vector<UInt_t> Coda3EventDecoder::EncodePHYSEventHeader()
 }
 
 
-void Coda3EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype)
+void Coda3EventDecoder::EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype, int localtime)
 {
-	int localtime  = (int)time(0);
 	buffer[0] = 4; // Prestart event length
-	// TODO: We need access to the ControlEvent enum
-	buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
+	buffer[1] = ((0xffd1 << 16) | (0x01 << 8));
 	buffer[2] = localtime;
 	buffer[3] = runnumber;
 	buffer[4] = runtype;
 }
 
-void Coda3EventDecoder::EncodeGoEventHeader(int* buffer, int buffer_size)
+void Coda3EventDecoder::EncodeGoEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)
 {
-	int localtime  = (int)time(0);
-	int eventcount = 0;
-	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // Go event length
-	buffer[1] = ((0xffd1 << 16) | (0x01 << 8) );
+	buffer[1] = ((0xffd2 << 16) | (0x01 << 8) );
 	buffer[2] = localtime;
 	buffer[3] = 0; // unused
 	buffer[4] = eventcount;
 }
 
-void Coda3EventDecoder::EncodePauseEventHeader(int* buffer, int buffer_size)
+void Coda3EventDecoder::EncodePauseEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)
 {
-	int localtime  = (int)time(0);
-	int eventcount = 0;
-	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // Pause event length
-  buffer[1] = ((0xffd2 << 16) | (0x01 << 8) );
+  buffer[1] = ((0xffd3 << 16) | (0x01 << 8) );
 	buffer[2] =	localtime;
 	buffer[3] = 0; // unused
 	buffer[4] = eventcount;
 }
 
-void Coda3EventDecoder::EncodeEndEventHeader(int* buffer, int buffer_size)
+void Coda3EventDecoder::EncodeEndEventHeader(int* buffer, int buffer_size, int eventcount, int localtime)
 {
-	int localtime  = (int)time(0);
-	int eventcount = 0;
-	// TODO: We need access to the ControlEvent enum
 	buffer[0] = 4; // End event length
-  buffer[1] = ((0xffd3 << 16) | (0x01 << 8) );
+  buffer[1] = ((0xffd4 << 16) | (0x01 << 8) );
 	buffer[2] = localtime;
 	buffer[3] = 0; // unused
 	buffer[4] = eventcount; 

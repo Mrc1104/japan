@@ -598,42 +598,7 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
   std::vector<UInt_t> buffer;
   subsystems.EncodeEventData(buffer);
   // Add CODA event header
- 	std::vector<UInt_t> header;
-	
-	// TODO:
-	// || Abstract this logic to a "EncodeHeaderFunction" ||
-	if(fDataVersion == 2){
-  	header.push_back((0x0001 << 16) | (0x10 << 8) | 0xCC);
-			// event type | event data type | event ID (0xCC for CODA event)
-  	header.push_back(4);	// size of header field
-  	header.push_back((0xC000 << 16) | (0x01 << 8) | 0x00);
-			// bank type | bank data type (0x01 for uint32) | bank ID (0x00 for header event)
-  	header.push_back( ++(decoder->fEvtNumber) ); // event number (initialized to 0,
-			// so increment before use to agree with CODA number)
-  	header.push_back(1);	// event class
-  	header.push_back(0);	// status summary
-	} else{ // fDataVersion == 3 
-		// Could we make this more dynamic by reversing the TBOBJ::Fill mechanism?
-		header.push_back(0xFF501001);
-		header.push_back(0x0000000b); // word count for Trigger Bank
-		header.push_back(0xFF212001); // 0x001 = # of ROCs (is this an issue if we have multiple rocs?)
-		header.push_back(0x010a0004); 
-		// evtnum is held by a 64 bit ... for now we set the upper 32 bits to 0
-		header.push_back(++(decoder->fEvtNumber) );
-		header.push_back(0x0);
-
-  	int localtime = (int) time(0);
-		// evttime is held by a 64 bit (bits 0-48 is the time) ... for now we set the upper 32 bits to 0
-		header.push_back(localtime);
-		header.push_back(0x0);
-		header.push_back(0x1850001);
-		header.push_back(0xc0da); // TS# Trigger
-		header.push_back(0x2010002);
-		header.push_back(0xc0da01);  	
-		header.push_back(0xc0da02);	
-
-	}
-	// ^^Abstract this logic to a "EncodeHeaderFunction" ^^
+ 	std::vector<UInt_t> header = decoder->EncodePHYSEventHeader();
 
   // Copy the encoded event buffer into an array of integers,
   // as expected by the CODA routines.
@@ -659,73 +624,35 @@ Int_t QwEventBuffer::EncodeSubsystemData(QwSubsystemArray &subsystems)
 Int_t QwEventBuffer::EncodePrestartEvent(int runnumber, int runtype)
 {
   int buffer[5];
-  int localtime = (int) time(0);
-	// TODO:
-	// Replace with eventdecoder->EncoderPrestartEvent
-  buffer[0] = 4; // length
-	if(fDataVersion == 2)
-  	buffer[1] = ((kPRESTART_EVENT << 16) | (0x01 << 8) | 0xCC);
-	else
-		buffer[1] = ((0xffd1 << 16) | (0x01 << 8) );
-  buffer[2] = localtime;
-  buffer[3] = runnumber;
-  buffer[4] = runtype;
-
+	int localtime  = (int)time(0);
+	decoder->EncodePrestartEventHeader(buffer,5, runnumber, runtype, localtime);
   ProcessPrestart(localtime, runnumber, runtype);
   return WriteEvent(buffer);
 }
 Int_t QwEventBuffer::EncodeGoEvent()
 {
   int buffer[5];
-  int localtime = (int) time(0);
-  int eventcount = 0;
-	// TODO:
-	// Replace with eventdecoder->EncoderPrestartEvent
-  buffer[0] = 4; // length
-	if(fDataVersion == 2)
-  	buffer[1] = ((kGO_EVENT << 16) | (0x01 << 8) | 0xCC);
-	else
-  	buffer[1] = ((0xffd2 << 16) | (0x01 << 8) );
-  buffer[2] = localtime;
-  buffer[3] = 0; // (unused)
-  buffer[4] = eventcount;
-
+	int localtime  = (int)time(0);
+	int eventcount = 0;
+	decoder->EncodeGoEventHeader(buffer, 5, eventcount, localtime);
   ProcessGo(localtime, eventcount);
   return WriteEvent(buffer);
 }
 Int_t QwEventBuffer::EncodePauseEvent()
 {
   int buffer[5];
-  int localtime = (int) time(0);
-  int eventcount = 0;
-	// TODO:
-	// Replace with eventdecoder->EncoderPrestartEvent
-  buffer[0] = 4; // length
-  if(fDataVersion == 2)
-  	buffer[1] = ((kPAUSE_EVENT << 16) | (0x01 << 8) | 0xCC);
-  else
-  	buffer[1] = ((0xffd3 << 16) | (0x01 << 8) );
-  buffer[2] = localtime;
-  buffer[3] = 0; // (unused)
-  buffer[4] = eventcount;
+	int localtime  = (int)time(0);
+	int eventcount = 0;
+	decoder->EncodePauseEventHeader(buffer, 5, eventcount, localtime);
   ProcessPause(localtime, eventcount);
   return WriteEvent(buffer);
 }
 Int_t QwEventBuffer::EncodeEndEvent()
 {
   int buffer[5];
-  int localtime = (int) time(0);
-  int eventcount = 0;
-	// TODO:
-	// Replace with eventdecoder->EncoderPrestartEvent
-  buffer[0] = 4; // length
-  if(fDataVersion == 2)
-  	buffer[1] = ((kEND_EVENT << 16) | (0x01 << 8) | 0xCC);
-  else
-  	buffer[1] = ((0xffd4 << 16) | (0x01 << 8) );
-  buffer[2] = localtime;
-  buffer[3] = 0; // (unused)
-  buffer[4] = eventcount;
+	int localtime  = (int)time(0);
+	int eventcount = 0;
+	decoder->EncodeEndEventHeader(buffer, 5, eventcount, localtime);
   ProcessEnd(localtime, eventcount);
   return WriteEvent(buffer);
 }
