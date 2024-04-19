@@ -1,61 +1,47 @@
-#ifndef CODADECODER_H
-#define CODADECODER_H
+#ifndef	CODA3EVENTDECODER_H
+#define CODA3EVENTDECODER_H
 
-#include "QwOptions.h"
-#include <stdexcept>
-class CodaDecoder
+#include "VEventDecoder.h"
+#include "Rtypes.h"
+
+#include <vector>
+
+class Coda3EventDecoder : public VEventDecoder
 {
 public:
-	CodaDecoder() 
-  : tsEvType{0}
-  , block_size{0}
-  , evt_time{0}
-	{ }
- 	virtual ~CodaDecoder() { }
-protected:
-	// Hall A analyzer function (analyzer/CodaDecoder.[h,cxx])
-	// Virtual Parser function that reads and parses Coda3 data
-	// Needs access to QwEventBuffer Members
-	virtual Int_t LoadEvent(UInt_t* evbuffer) = 0;
-	// Hall A analyzer function (analyzer/CodaDecoder.[h,cxx])
-	// Virtual Parser function
-	// Needs access to QwEventBuffer Members
-	virtual Int_t interpretCoda3(UInt_t* evbuffer) = 0;
-	// Hall A analyzer function (analyzer/CodaDecoder.[h,cxx])
-	// Virtual parser that parses and stores the TI Trigger Bank	
-	// Needs access to QwEventBuffer Members
-	virtual Int_t trigBankDecode(UInt_t* evbuffer) = 0;
-	// Hall A analyzer function (analyzer/CodaDecoder.[h,cxx])
-	// Virtual parser that determines the event type
-	// We only care about the Physics Event Function
-	UInt_t InterpretBankTag(UInt_t tag);
-	// Hall A analyzer function (analyzer/CodaDecoder.[h,cxx])
-	// Debug function for special user-defined events
-	// Modified to take const UInt_t event_type so it does not need access to
-	// QwEventBuffer members
-	void debug_print(const UInt_t event_type, const UInt_t* evbuffer) const;
-
-	// Hall A analyzer function (analyzer/THaEvData.[h,cxx])	
-	// Accessor function for the event time
-	virtual ULong64_t GetEvTime() const { return evt_time; }
-	// Hall A analyzer function (analyzer/THaEvData.[h,cxx])	
-	// Setter function for the event time
-	void SetEvTime(ULong64_t evtime) { evt_time = evtime; }
-
-protected:	
-	// CodaDecoder
-	// tsEvType -- the TS# trigger
-	UInt_t tsEvType, block_size;
-	// THaEvData
-  ULong64_t evt_time; // Event time (for CODA 3.* this is a 250 Mhz clock)
-  UInt_t trigger_bits; //  (Not completely sure) The TS# trigger for the TS
+		Coda3EventDecoder() : fControlEventFlag(kFALSE), TSROCNumber(0) { }
+		~Coda3EventDecoder() { }
+public:
+// Encoding Functions
+	virtual std::vector<UInt_t> EncodePHYSEventHeader();
+	virtual void EncodePrestartEventHeader(int* buffer, int buffer_size, int runnumber, int runtype, int localtime);
+  virtual void EncodeGoEventHeader(int* buffer, int buffer_size, int eventcount, int localtime);
+  virtual void EncodePauseEventHeader(int* buffer, int buffer_size, int eventcount, int localtime);
+  virtual void EncodeEndEventHeader(int* buffer, int buffer_size, int eventcount, int localtime);
 
 public:
-	// Hall A analyzer error handling (analyzer/CodaDecoder.[h,cxx])
-	// Error codes for LoadEvent()	
+// Decoding Functions
+  virtual Int_t DecodeEventIDBank(UInt_t *buffer);
+public:
+// Boolean Functions
+	virtual Bool_t IsPhysicsEvent();
+private:
+// Debugging Functions
+	void printUserEvent(const UInt_t *buffer);
+	virtual void PrintDecoderInfo(QwLog& out);
+protected:
+	UInt_t InterpretBankTag(UInt_t tag);
+	Int_t trigBankDecode(UInt_t* buffer);
+	void trigBankErrorHandler( Int_t flag );
+
+protected:
+	ULong64_t GetEvTime() const { return evt_time; }
+	void SetEvTime(ULong64_t evtime) { evt_time = evtime; }
+	UInt_t tsEvType, block_size;
+  ULong64_t evt_time; // Event time (for CODA 3.* this is a 250 Mhz clock)
+  UInt_t trigger_bits; //  (Not completely sure) The TS# trigger for the TS
+public:
   enum { HED_OK = 0, HED_WARN = -63, HED_ERR = -127, HED_FATAL = -255 };
-	// Hall A analyzer runtime exception handling (analyzer/CodaDecoder.[h,cxx])
-	// Runtime exceptions used inside TBOBJ::Fill, thrown by LoadEvent()
   class coda_format_error : public std::runtime_error {
   public:
     explicit coda_format_error( const std::string& what_arg )
@@ -64,10 +50,6 @@ public:
       : std::runtime_error(what_arg) {}
   };
 
-	
-public:
-	// Hall A analyzer TI Trigger Bank Class (analyzer/CodaDecoder.[h,cxx])
-	// Object that contains the Trigger Bank data structure 
   class TBOBJ {
   public:
      TBOBJ() : blksize(0), tag(0), nrocs(0), len(0), tsrocLen(0), evtNum(0),
@@ -91,13 +73,8 @@ public:
      const uint16_t *evType;    /* Pointer to the array of Event Types */
      const uint32_t *TSROC;     /* Pointer to Trigger Supervisor ROC segment data */
    };
-
-
 protected:
-	// Hall A analyzer function (analyzer/CodaDecoder.[h,cxx])
-	// Loads the trigger bank info for the given TI Block
   Int_t LoadTrigBankInfo( UInt_t index_buffer );
-	// Hall A class instantiation 
   TBOBJ tbank;
 
 public:
@@ -122,6 +99,14 @@ public:
   static const UInt_t SCALER_EVTYPE    = 140;
   static const UInt_t SBSSCALER_EVTYPE = 141;
   static const UInt_t HV_DATA_EVTYPE   = 150;
-};
 
+protected:
+	// TODO:
+	// Should we move this to parent class VEventDecoder?
+	// (See discussion in VEventDecoder's inheritance)
+	Bool_t fControlEventFlag;
+	// TODO:
+	// How does JAPAN want to handle a TS?
+	uint32_t TSROCNumber;
+};
 #endif

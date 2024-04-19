@@ -275,6 +275,12 @@ Int_t main(Int_t argc, Char_t* argv[])
         //  Send ROC configuration event data to the subsystem objects.
         eventbuffer.FillSubsystemConfigurationData(detectors);
       }
+			// Possible ControlProcess Event Handling
+			// if we decide not to have the Decoder virtually inherit from MQwCodaControlEvent
+			/* if(eventbuffer.IsProccessEvent(){
+ 			*  eventbuffer.ProcessControlEvent();
+ 			*  }
+ 			*/
 
       //  Secondly, process EPICS events, but not for online running,
       //  because the EPICS events get messed up by our 32-bit to 64-bit
